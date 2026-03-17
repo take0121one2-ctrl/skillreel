@@ -4931,46 +4931,70 @@ window.updateSkill = async function (skillId, value) {
     alert("保存に失敗しました: " + error.message);
   }
 };
+  // ページ読み込み時のセッション復元（既にログイン済みの場合のみ）
   onAuthStateChanged(auth, async (firebaseUser) => {
-  if (!firebaseUser) return;
+    if (!firebaseUser) return;
+    // クリックハンドラ側で既にログイン処理済みの場合はスキップ
+    if (document.getElementById('login-screen').style.display === 'none') return;
 
-  try {
-    const userRef = doc(db, "users", firebaseUser.uid);
-    const userSnap = await getDoc(userRef);
-
-     if (userSnap.exists()) {
-   const userData = userSnap.data();
-   login(userData.role || "staff", firebaseUser, userData);
- } else {
-login("staff", firebaseUser, null);
+    try {
+      const userRef = doc(db, "users", firebaseUser.uid);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        const userData = userSnap.data();
+        login(userData.role || "staff", firebaseUser, userData);
+      } else {
+        login("staff", firebaseUser, null);
+      }
+    } catch (error) {
+      console.error("ユーザー復元エラー:", error);
+      login("staff", firebaseUser, null);
     }
-  } catch (error) {
-    console.error("ユーザー復元エラー:", error);
-    login("staff", firebaseUser, null);
-  }
-});
+  });
 
-document.getElementById("googleLoginBtn").addEventListener("click", async () => {
-  try {
-    const result = await signInWithPopup(auth, provider);
-    const firebaseUser = result.user;
+  document.getElementById("googleLoginBtn").addEventListener("click", async () => {
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const firebaseUser = result.user;
 
-    await setDoc(doc(db, "users", firebaseUser.uid), {
-      uid: firebaseUser.uid,
-      name: firebaseUser.displayName || "未設定",
-      email: firebaseUser.email || "",
-      photoURL: firebaseUser.photoURL || "",
-      role: "staff",
-      companyId: "company_001",
-      storeId: "store_001",
-      createdAt: serverTimestamp(),
-      lastLoginAt: serverTimestamp()
-    }, { merge: true });
-  } catch (error) {
-    console.error("Googleログイン/Firestore保存エラー:", error);
-    alert("保存に失敗しました: " + error.message);
-  }
-});
+      // Firestoreからユーザーデータ取得
+      let userData = null;
+      try {
+        const userRef = doc(db, "users", firebaseUser.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          userData = userSnap.data();
+          // ログイン日時を更新
+          await setDoc(userRef, { lastLoginAt: serverTimestamp() }, { merge: true });
+        } else {
+          // 初回登録
+          const newUserData = {
+            uid: firebaseUser.uid,
+            name: firebaseUser.displayName || "未設定",
+            email: firebaseUser.email || "",
+            photoURL: firebaseUser.photoURL || "",
+            role: "staff",
+            companyId: "company_001",
+            storeId: "store_001",
+            createdAt: serverTimestamp(),
+            lastLoginAt: serverTimestamp()
+          };
+          await setDoc(userRef, newUserData, { merge: true });
+          userData = newUserData;
+        }
+      } catch (fsError) {
+        // Firestoreエラーはログのみ（ログインは続行）
+        console.warn("Firestore操作エラー（続行）:", fsError);
+      }
+
+      // 直接login()を呼んで画面遷移
+      login(userData?.role || "staff", firebaseUser, userData);
+
+    } catch (error) {
+      console.error("Googleログインエラー:", error);
+      alert("Googleログインに失敗しました: " + error.message);
+    }
+  });
   window.logout = async function () {
   try {
     await signOut(auth);
