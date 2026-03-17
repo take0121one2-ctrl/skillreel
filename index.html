@@ -2940,6 +2940,18 @@ const staffTableRows = storeStaff.map(u => {
 
       content.innerHTML = `
         <div class="page-card" style="margin-bottom:20px">
+          <div class="page-card-title">スタッフを招待する</div>
+          <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">招待リンクをスタッフに送ると、Googleアカウントで登録できます。</p>
+          <button class="btn-register" onclick="generateInvite()" style="max-width:200px;">招待リンクを発行</button>
+          <div id="invite-result-box" style="display:none;margin-top:16px;background:var(--bg);border-radius:var(--radius-md);padding:12px;border:1px solid var(--border);">
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">招待URL</div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <code id="invite-result-url" style="font-size:11px;word-break:break-all;flex:1;"></code>
+              <button class="btn-edit-emp" onclick="copyInviteUrl(document.getElementById('invite-result-url').textContent)" style="white-space:nowrap">コピー</button>
+            </div>
+          </div>
+        </div>
+        <div class="page-card" style="margin-bottom:20px">
           <div class="page-card-title">スタッフを登録する</div>
           <div class="add-employee-form">
             <div class="form-group">
@@ -2961,13 +2973,21 @@ const staffTableRows = storeStaff.map(u => {
             </div>
           </div>
         </div>
-        <div class="page-card">
+        <div class="page-card" style="margin-bottom:20px">
           <div class="page-card-title">登録済みスタッフ一覧</div>
           <table class="employee-table">
             <thead><tr><th>名前</th><th>所属店舗</th><th>入社日・経過日数</th><th>操作</th></tr></thead>
             <tbody>${rows}</tbody>
           </table>
+        </div>
+        <div class="page-card">
+          <div class="page-card-title">送信済み招待一覧</div>
+          <table class="employee-table">
+            <thead><tr><th>招待URL</th><th>発行日</th><th>状態</th></tr></thead>
+            <tbody id="invite-list-body"><tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:16px;">読み込み中...</td></tr></tbody>
+          </table>
         </div>`;
+      if (typeof window.loadInvites === 'function') window.loadInvites();
     }
 
     function registerEmployee() {
@@ -4901,7 +4921,7 @@ const staffTableRows = storeStaff.map(u => {
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-  import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { getFirestore, doc, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAgd3NUGdTIosjPQ5Qu2bljEfcTK2T0g8E",
@@ -4914,16 +4934,15 @@ const staffTableRows = storeStaff.map(u => {
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
-  const db = getFirestore(app);
+  const db   = getFirestore(app);
   const provider = new GoogleAuthProvider();
 
-  // ── URLパラメータ取得 ──────────────────────────
-  const urlParams = new URLSearchParams(window.location.search);
-  const urlCompanyId = urlParams.get('company');
-  const urlStoreId   = urlParams.get('store');
-  const isInviteUrl  = !!(urlCompanyId && urlStoreId);
+  // ── URLパラメータ取得 ──────────────────────────────
+  const urlParams   = new URLSearchParams(window.location.search);
+  const inviteToken = urlParams.get('invite');
+  const isInviteUrl = !!inviteToken;
 
-  // ── ログイン画面の切り替え ─────────────────────
+  // ── ログイン画面の切り替え ─────────────────────────
   const staffForm   = document.getElementById('login-staff-form');
   const invitePanel = document.getElementById('login-invite');
   if (isInviteUrl) {
@@ -4934,7 +4953,7 @@ const staffTableRows = storeStaff.map(u => {
     invitePanel.style.display = 'block';
   }
 
-  // ── Firestoreからユーザーデータを取得するヘルパー ──
+  // ── Firestoreユーザーデータ取得ヘルパー ───────────────
   async function fetchUserData(uid) {
     try {
       const snap = await getDoc(doc(db, "users", uid));
@@ -4945,7 +4964,57 @@ const staffTableRows = storeStaff.map(u => {
     }
   }
 
-  // ── スキル保存（window経由で通常スクリプトから呼ぶ） ──
+  // ── 招待リンクからのログイン処理 ─────────────────────
+  async function handleInviteLogin(firebaseUser, token) {
+    const inviteRef  = doc(db, "invites", token);
+    const inviteSnap = await getDoc(inviteRef);
+
+    if (!inviteSnap.exists()) {
+      alert("招待リンクが無効です");
+      await signOut(auth);
+      return;
+    }
+
+    const invite = inviteSnap.data();
+
+    if (invite.used) {
+      alert("この招待リンクは既に使用されています");
+      await signOut(auth);
+      return;
+    }
+
+    // 既存ユーザーはそのままログイン
+    const existing = await fetchUserData(firebaseUser.uid);
+    if (existing) {
+      await setDoc(doc(db, "users", firebaseUser.uid), { lastLoginAt: serverTimestamp() }, { merge: true });
+      login(existing.role || invite.role, firebaseUser, existing);
+      return;
+    }
+
+    // 新規ユーザー登録
+    await setDoc(doc(db, "users", firebaseUser.uid), {
+      uid:         firebaseUser.uid,
+      name:        firebaseUser.displayName || "未設定",
+      email:       firebaseUser.email || "",
+      photoURL:    firebaseUser.photoURL || "",
+      role:        invite.role,
+      companyId:   invite.companyId,
+      storeId:     invite.storeId,
+      createdAt:   serverTimestamp(),
+      lastLoginAt: serverTimestamp()
+    }, { merge: true });
+
+    // 招待を使用済みに更新
+    await setDoc(inviteRef, { used: true }, { merge: true });
+
+    login(invite.role, firebaseUser, {
+      role:      invite.role,
+      companyId: invite.companyId,
+      storeId:   invite.storeId
+    });
+  }
+
+  // ── スキル保存 ─────────────────────────────────────
   window.updateSkill = async function (skillId, value) {
     const firebaseUser = auth.currentUser;
     if (!firebaseUser) { alert("ログインしてください"); return; }
@@ -4964,7 +5033,87 @@ const staffTableRows = storeStaff.map(u => {
     }
   };
 
-  // ── ページ読み込み時のセッション復元 ──────────────
+  // ── 招待リンク発行 ─────────────────────────────────
+  window.generateInvite = async function () {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) { alert("ログインしてください"); return; }
+    const cu = typeof currentUser !== 'undefined' ? currentUser : null;
+    if (!cu) { alert("ユーザー情報が取得できません"); return; }
+
+    const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    try {
+      await setDoc(doc(db, "invites", token), {
+        token:     token,
+        companyId: cu.companyId || "company_001",
+        storeId:   cu.storeId   || "store_001",
+        role:      "staff",
+        createdBy: firebaseUser.uid,
+        createdAt: serverTimestamp(),
+        used:      false
+      });
+
+      const inviteUrl = `https://skillreel.vercel.app/?invite=${token}`;
+      const box   = document.getElementById('invite-result-box');
+      const urlEl = document.getElementById('invite-result-url');
+      if (box)   box.style.display = 'block';
+      if (urlEl) urlEl.textContent = inviteUrl;
+
+      loadInviteList(firebaseUser.uid);
+    } catch (e) {
+      console.error("招待リンク生成エラー:", e);
+      alert("招待リンクの生成に失敗しました: " + e.message);
+    }
+  };
+
+  window.copyInviteUrl = function (url) {
+    navigator.clipboard.writeText(url).then(() => {
+      showToast('招待URLをコピーしました');
+    }).catch(() => {
+      prompt("以下のURLをコピーしてください:", url);
+    });
+  };
+
+  // ── 招待一覧読み込み ───────────────────────────────
+  async function loadInviteList(uid) {
+    const listEl = document.getElementById('invite-list-body');
+    if (!listEl) return;
+    try {
+      const q    = query(collection(db, "invites"), where("createdBy", "==", uid));
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        listEl.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:16px;">発行済みの招待はありません</td></tr>';
+        return;
+      }
+      const rows = [];
+      snap.forEach(d => {
+        const inv    = d.data();
+        const url    = `https://skillreel.vercel.app/?invite=${inv.token}`;
+        const date   = inv.createdAt?.toDate ? inv.createdAt.toDate().toLocaleDateString('ja-JP') : '—';
+        const status = inv.used
+          ? '<span style="color:var(--text-muted)">使用済み</span>'
+          : '<span style="color:var(--success);font-weight:600">未使用</span>';
+        const copyBtn = !inv.used
+          ? `<button class="btn-edit-emp" onclick="copyInviteUrl('${url}')" style="margin-left:8px">コピー</button>`
+          : '';
+        rows.push(`<tr>
+          <td style="font-size:11px;word-break:break-all;">${url}</td>
+          <td style="font-size:12px;white-space:nowrap">${date}</td>
+          <td style="white-space:nowrap">${status}${copyBtn}</td>
+        </tr>`);
+      });
+      listEl.innerHTML = rows.join('');
+    } catch (e) {
+      console.error("招待一覧取得エラー:", e);
+      listEl.innerHTML = '<tr><td colspan="3" style="color:var(--danger);padding:16px;">取得エラー</td></tr>';
+    }
+  }
+
+  window.loadInvites = function () {
+    const firebaseUser = auth.currentUser;
+    if (firebaseUser) loadInviteList(firebaseUser.uid);
+  };
+
+  // ── ページ読み込み時のセッション復元 ──────────────────
   onAuthStateChanged(auth, async (firebaseUser) => {
     if (!firebaseUser) return;
     if (document.getElementById('login-screen').style.display === 'none') return;
@@ -4972,7 +5121,6 @@ const staffTableRows = storeStaff.map(u => {
     const userData = await fetchUserData(firebaseUser.uid);
     const role = userData?.role || "staff";
 
-    // URLパラメータなし（管理者URL）の場合は管理者ロールのみ許可
     if (!isInviteUrl && role !== "headquarters" && role !== "manager") {
       await signOut(auth);
       return;
@@ -4980,68 +5128,52 @@ const staffTableRows = storeStaff.map(u => {
     login(role, firebaseUser, userData);
   });
 
-  // ── スタッフ用Googleログイン ─────────────────────
+  // ── Googleログイン（招待トークンあり/なし分岐） ────────
   document.getElementById("googleLoginBtn").addEventListener("click", async () => {
     try {
-      const result = await signInWithPopup(auth, provider);
+      const result       = await signInWithPopup(auth, provider);
       const firebaseUser = result.user;
 
-      let userData = await fetchUserData(firebaseUser.uid);
-      try {
-        if (userData) {
-          await setDoc(doc(db, "users", firebaseUser.uid), { lastLoginAt: serverTimestamp() }, { merge: true });
-        } else {
-          // 初回登録：URLパラメータからcompanyId・storeIdを設定
-          const newData = {
-            uid:       firebaseUser.uid,
-            name:      firebaseUser.displayName || "未設定",
-            email:     firebaseUser.email || "",
-            photoURL:  firebaseUser.photoURL || "",
-            role:      "staff",
-            companyId: urlCompanyId,
-            storeId:   urlStoreId,
-            createdAt:    serverTimestamp(),
-            lastLoginAt:  serverTimestamp()
-          };
-          await setDoc(doc(db, "users", firebaseUser.uid), newData, { merge: true });
-          userData = newData;
+      if (inviteToken) {
+        await handleInviteLogin(firebaseUser, inviteToken);
+      } else {
+        let userData = await fetchUserData(firebaseUser.uid);
+        try {
+          if (userData) {
+            await setDoc(doc(db, "users", firebaseUser.uid), { lastLoginAt: serverTimestamp() }, { merge: true });
+          }
+        } catch (fsError) {
+          console.warn("Firestore書き込みエラー（続行）:", fsError);
         }
-      } catch (fsError) {
-        console.warn("Firestore書き込みエラー（続行）:", fsError);
+        login(userData?.role || "staff", firebaseUser, userData);
       }
-
-      login(userData?.role || "staff", firebaseUser, userData);
-
     } catch (error) {
       console.error("Googleログインエラー:", error);
       alert("Googleログインに失敗しました: " + error.message);
     }
   });
 
-  // ── 管理者ログイン（本部・店長専用） ───────────────
+  // ── 管理者ログイン（本部・店長専用） ──────────────────
   document.getElementById("adminLoginBtn").addEventListener("click", async () => {
     try {
-      const result = await signInWithPopup(auth, provider);
+      const result       = await signInWithPopup(auth, provider);
       const firebaseUser = result.user;
-
-      const userData = await fetchUserData(firebaseUser.uid);
-      const role = userData?.role;
+      const userData     = await fetchUserData(firebaseUser.uid);
+      const role         = userData?.role;
 
       if (role !== "headquarters" && role !== "manager") {
         await signOut(auth);
         alert("このアカウントは管理者権限がありません。\n本部・店長アカウントでログインしてください。");
         return;
       }
-
       login(role, firebaseUser, userData);
-
     } catch (error) {
       console.error("管理者ログインエラー:", error);
       alert("ログインに失敗しました: " + error.message);
     }
   });
 
-  // ── ログアウト ───────────────────────────────────
+  // ── ログアウト ─────────────────────────────────────
   window.logout = async function () {
     try {
       await signOut(auth);
