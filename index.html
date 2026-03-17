@@ -1490,22 +1490,36 @@
         <div class="login-catch">スキルを、もっと身近に。</div>
       </div>
 
-      <form class="login-form" onsubmit="return false;">
-        <div class="input-group">
-          <i class="fa-regular fa-envelope input-icon"></i>
-          <input type="email" placeholder="メールアドレス" autocomplete="email">
-        </div>
-        <div class="input-group">
-          <i class="fa-solid fa-lock input-icon"></i>
-          <input type="password" placeholder="パスワード" autocomplete="current-password">
-        </div>
-        <button type="submit" class="btn-login">ログイン</button>
-        <button type="button" id="googleLoginBtn" class="btn-login" style="background:#fff;color:#333;border:1px solid #ddd;margin-top:10px;">
-<i class="fab fa-google"></i> Googleでログイン
-</button>
-      </form>
-      
-  　</div>
+      <!-- スタッフログイン（URLパラメータあり） -->
+      <div id="login-staff-form">
+        <form class="login-form" onsubmit="return false;">
+          <div class="input-group">
+            <i class="fa-regular fa-envelope input-icon"></i>
+            <input type="email" placeholder="メールアドレス" autocomplete="email">
+          </div>
+          <div class="input-group">
+            <i class="fa-solid fa-lock input-icon"></i>
+            <input type="password" placeholder="パスワード" autocomplete="current-password">
+          </div>
+          <button type="submit" class="btn-login">ログイン</button>
+          <button type="button" id="googleLoginBtn" class="btn-login" style="background:#fff;color:#333;border:1px solid #ddd;margin-top:10px;display:flex;align-items:center;justify-content:center;gap:8px;">
+            <i class="fab fa-google" style="color:#EA4335"></i> Googleでログイン
+          </button>
+        </form>
+      </div>
+
+      <!-- 招待待ち画面（URLパラメータなし） -->
+      <div id="login-invite" style="display:none; text-align:center; padding:8px 0;">
+        <div style="font-size:48px; margin-bottom:16px;">🔒</div>
+        <p style="font-size:15px; font-weight:700; margin-bottom:8px; color:var(--text-primary);">招待リンクからアクセスしてください</p>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:28px;">店舗スタッフの方は、店長から送られた招待リンクよりアクセスしてください。</p>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:12px;">店長または本部の方はこちら</p>
+        <button type="button" id="adminLoginBtn" class="btn-login" style="background:#fff;color:#333;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;gap:8px;margin:0 auto;">
+          <i class="fab fa-google" style="color:#EA4335"></i> 管理者ログイン
+        </button>
+      </div>
+
+    </div>
   </div>
   <!-- =============================================
        アプリ画面（骨格）
@@ -4886,108 +4900,116 @@ const staffTableRows = storeStaff.map(u => {
   </script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyAgd3NUGdTIosjPQ5Qu2bljEfcTK2T0g8E",
-  authDomain: "skillreel-68091.firebaseapp.com",
-  projectId: "skillreel-68091",
-  storageBucket: "skillreel-68091.firebasestorage.app",
-  messagingSenderId: "659149705828",
-  appId: "1:659149705828:web:ffcaaf1b62e3c4f0b14571"
-};
+  const firebaseConfig = {
+    apiKey: "AIzaSyAgd3NUGdTIosjPQ5Qu2bljEfcTK2T0g8E",
+    authDomain: "skillreel-68091.firebaseapp.com",
+    projectId: "skillreel-68091",
+    storageBucket: "skillreel-68091.firebasestorage.app",
+    messagingSenderId: "659149705828",
+    appId: "1:659149705828:web:ffcaaf1b62e3c4f0b14571"
+  };
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const provider = new GoogleAuthProvider();
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const provider = new GoogleAuthProvider();
 
-window.updateSkill = async function (skillId, value) {
-  const firebaseUser = auth.currentUser;
+  // ── URLパラメータ取得 ──────────────────────────
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlCompanyId = urlParams.get('company');
+  const urlStoreId   = urlParams.get('store');
+  const isInviteUrl  = !!(urlCompanyId && urlStoreId);
 
-  if (!firebaseUser) {
-    alert("ログインしてください");
-    return;
+  // ── ログイン画面の切り替え ─────────────────────
+  const staffForm   = document.getElementById('login-staff-form');
+  const invitePanel = document.getElementById('login-invite');
+  if (isInviteUrl) {
+    staffForm.style.display   = 'block';
+    invitePanel.style.display = 'none';
+  } else {
+    staffForm.style.display   = 'none';
+    invitePanel.style.display = 'block';
   }
 
-  try {
-    await setDoc(doc(db, "users", firebaseUser.uid), {
-      skillChecks: {
-        [skillId]: value
-      },
-      lastUpdatedAt: serverTimestamp()
-    }, { merge: true });
-
-    if (!currentUser) currentUser = {};
-    if (!currentUser.skillChecks) currentUser.skillChecks = {};
-
-    currentUser.skillChecks[skillId] = value;
-    renderSkills();
-
-    console.log("スキル保存成功:", skillId, value);
-  } catch (error) {
-    console.error("スキル保存エラー:", error);
-    alert("保存に失敗しました: " + error.message);
+  // ── Firestoreからユーザーデータを取得するヘルパー ──
+  async function fetchUserData(uid) {
+    try {
+      const snap = await getDoc(doc(db, "users", uid));
+      return snap.exists() ? snap.data() : null;
+    } catch (e) {
+      console.warn("Firestore取得エラー:", e);
+      return null;
+    }
   }
-};
-  // ページ読み込み時のセッション復元（既にログイン済みの場合のみ）
+
+  // ── スキル保存（window経由で通常スクリプトから呼ぶ） ──
+  window.updateSkill = async function (skillId, value) {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) { alert("ログインしてください"); return; }
+    try {
+      await setDoc(doc(db, "users", firebaseUser.uid), {
+        skillChecks: { [skillId]: value },
+        lastUpdatedAt: serverTimestamp()
+      }, { merge: true });
+      window._currentUser = window._currentUser || {};
+      window._currentUser.skillChecks = window._currentUser.skillChecks || {};
+      window._currentUser.skillChecks[skillId] = value;
+      renderSkills();
+    } catch (error) {
+      console.error("スキル保存エラー:", error);
+      alert("保存に失敗しました: " + error.message);
+    }
+  };
+
+  // ── ページ読み込み時のセッション復元 ──────────────
   onAuthStateChanged(auth, async (firebaseUser) => {
     if (!firebaseUser) return;
-    // クリックハンドラ側で既にログイン処理済みの場合はスキップ
     if (document.getElementById('login-screen').style.display === 'none') return;
 
-    try {
-      const userRef = doc(db, "users", firebaseUser.uid);
-      const userSnap = await getDoc(userRef);
-      if (userSnap.exists()) {
-        const userData = userSnap.data();
-        login(userData.role || "staff", firebaseUser, userData);
-      } else {
-        login("staff", firebaseUser, null);
-      }
-    } catch (error) {
-      console.error("ユーザー復元エラー:", error);
-      login("staff", firebaseUser, null);
+    const userData = await fetchUserData(firebaseUser.uid);
+    const role = userData?.role || "staff";
+
+    // URLパラメータなし（管理者URL）の場合は管理者ロールのみ許可
+    if (!isInviteUrl && role !== "headquarters" && role !== "manager") {
+      await signOut(auth);
+      return;
     }
+    login(role, firebaseUser, userData);
   });
 
+  // ── スタッフ用Googleログイン ─────────────────────
   document.getElementById("googleLoginBtn").addEventListener("click", async () => {
     try {
       const result = await signInWithPopup(auth, provider);
       const firebaseUser = result.user;
 
-      // Firestoreからユーザーデータ取得
-      let userData = null;
+      let userData = await fetchUserData(firebaseUser.uid);
       try {
-        const userRef = doc(db, "users", firebaseUser.uid);
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists()) {
-          userData = userSnap.data();
-          // ログイン日時を更新
-          await setDoc(userRef, { lastLoginAt: serverTimestamp() }, { merge: true });
+        if (userData) {
+          await setDoc(doc(db, "users", firebaseUser.uid), { lastLoginAt: serverTimestamp() }, { merge: true });
         } else {
-          // 初回登録
-          const newUserData = {
-            uid: firebaseUser.uid,
-            name: firebaseUser.displayName || "未設定",
-            email: firebaseUser.email || "",
-            photoURL: firebaseUser.photoURL || "",
-            role: "staff",
-            companyId: "company_001",
-            storeId: "store_001",
-            createdAt: serverTimestamp(),
-            lastLoginAt: serverTimestamp()
+          // 初回登録：URLパラメータからcompanyId・storeIdを設定
+          const newData = {
+            uid:       firebaseUser.uid,
+            name:      firebaseUser.displayName || "未設定",
+            email:     firebaseUser.email || "",
+            photoURL:  firebaseUser.photoURL || "",
+            role:      "staff",
+            companyId: urlCompanyId,
+            storeId:   urlStoreId,
+            createdAt:    serverTimestamp(),
+            lastLoginAt:  serverTimestamp()
           };
-          await setDoc(userRef, newUserData, { merge: true });
-          userData = newUserData;
+          await setDoc(doc(db, "users", firebaseUser.uid), newData, { merge: true });
+          userData = newData;
         }
       } catch (fsError) {
-        // Firestoreエラーはログのみ（ログインは続行）
-        console.warn("Firestore操作エラー（続行）:", fsError);
+        console.warn("Firestore書き込みエラー（続行）:", fsError);
       }
 
-      // 直接login()を呼んで画面遷移
       login(userData?.role || "staff", firebaseUser, userData);
 
     } catch (error) {
@@ -4995,15 +5017,40 @@ window.updateSkill = async function (skillId, value) {
       alert("Googleログインに失敗しました: " + error.message);
     }
   });
+
+  // ── 管理者ログイン（本部・店長専用） ───────────────
+  document.getElementById("adminLoginBtn").addEventListener("click", async () => {
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const firebaseUser = result.user;
+
+      const userData = await fetchUserData(firebaseUser.uid);
+      const role = userData?.role;
+
+      if (role !== "headquarters" && role !== "manager") {
+        await signOut(auth);
+        alert("このアカウントは管理者権限がありません。\n本部・店長アカウントでログインしてください。");
+        return;
+      }
+
+      login(role, firebaseUser, userData);
+
+    } catch (error) {
+      console.error("管理者ログインエラー:", error);
+      alert("ログインに失敗しました: " + error.message);
+    }
+  });
+
+  // ── ログアウト ───────────────────────────────────
   window.logout = async function () {
-  try {
-    await signOut(auth);
-    location.reload();
-  } catch (error) {
-    console.error("ログアウトエラー:", error);
-    alert("ログアウトに失敗しました");
-  }
-};
+    try {
+      await signOut(auth);
+      location.reload();
+    } catch (error) {
+      console.error("ログアウトエラー:", error);
+      alert("ログアウトに失敗しました");
+    }
+  };
 </script>
 </body>
 </html>
