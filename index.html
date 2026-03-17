@@ -2609,67 +2609,22 @@ const staffTableRows = storeStaff.map(u => {
     }
 
     async function submitVideoRequest() {
-      const titleEl    = document.getElementById('vr-title');
-      const categoryEl = document.getElementById('vr-category');
-      const descEl     = document.getElementById('vr-description');
-      const thumbInput = document.getElementById('vr-thumbnail');
-      const videoInput = document.getElementById('vr-video');
-
-      if (!titleEl || !titleEl.value.trim()) {
-        showToast('タイトルを入力してください');
+      // Firebase Storage/Firestore 連携版にルーティング
+      if (typeof window.submitVideoToFirestore === 'function') {
+        await window.submitVideoToFirestore();
         return;
       }
-
-      let thumbnailData = null;
-      let videoData     = null;
-
-      // サムネイルをawaitで待って読み込む
-      if (thumbInput && thumbInput.files && thumbInput.files[0]) {
-        thumbnailData = await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = e => resolve(e.target.result);
-          reader.readAsDataURL(thumbInput.files[0]);
-        });
-      }
-
-      // 動画をawaitで待って読み込む（ここが修正のポイント）
-      if (videoInput && videoInput.files && videoInput.files[0]) {
-        videoData = await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = e => resolve(e.target.result);
-          reader.readAsDataURL(videoInput.files[0]);
-        });
-      }
-
-      // 両方の読み込みが完了してから保存
+      // フォールバック：ローカル保存（Firestore未接続時）
+      const titleEl = document.getElementById('vr-title');
+      if (!titleEl || !titleEl.value.trim()) { showToast('タイトルを入力してください'); return; }
       const pending = {
-        id:          Date.now(),
-        title:       titleEl.value.trim(),
-        category:    categoryEl ? categoryEl.value : '',
-        description: descEl ? descEl.value.trim() : '',
-        thumbnail:   thumbnailData,
-        videoData:   videoData,
-        store:       currentUser.store,
-        submittedBy: currentUser.name,
-        status:      'pending',
-        submittedAt: new Date().toISOString().split('T')[0],
+        id: Date.now(), title: titleEl.value.trim(),
+        category: document.getElementById('vr-category')?.value || '',
+        description: document.getElementById('vr-description')?.value.trim() || '',
+        store: currentUser.store, submittedBy: currentUser.name,
+        status: 'pending', submittedAt: new Date().toISOString().split('T')[0],
       };
-
       PENDING_VIDEOS.push(pending);
-
-      // 確認用ログ
-      console.log('保存したvideoData:', videoData ? '存在する（' + videoData.length + 'bytes）' : '存在しない');
-
-      NOTIFICATIONS.push({
-        id:         pending.id + 1,
-        type:       'video_request',
-        message:    `${currentUser.store}の${currentUser.name}から動画投稿申請があります：「${pending.title}」`,
-        contentId:  pending.id,
-        createdAt:  pending.submittedAt,
-        read:       false,
-        targetRole: 'headquarters',
-      });
-
       showToast('申請しました。本部の確認をお待ちください。');
       renderPendingVideoList();
     }
@@ -4237,47 +4192,46 @@ const staffTableRows = storeStaff.map(u => {
       renderAllVideoViews();
     }
 
-    function approveVideoRequest(pendingId) {
+    async function approveVideoRequest(pendingId) {
+      // Firestore 動画（string id）の場合
+      if (typeof pendingId === 'string' && typeof window.approveVideoFirestore === 'function') {
+        const p = (window._pendingVideoCache || []).find(x => x.id === pendingId)
+               || PENDING_VIDEOS.find(x => String(x.id) === pendingId);
+        await window.approveVideoFirestore(pendingId, p?.title || '動画');
+        renderVideoMgmt();
+        return;
+      }
+      // ローカルデータ（数値 id）フォールバック
       const p = PENDING_VIDEOS.find(x => x.id === pendingId);
       if (!p) return;
       p.status = 'approved';
       const newId = Math.max(0, ...VIDEOS.map(v => v.id)) + 1;
-      VIDEOS.push({
-        id:          newId,
-        title:       p.title,
-        category:    p.category,
-        description: p.description,
-        thumbnail:   p.thumbnail,
-        videoData:   p.videoData,
-        store:       p.store,
-        published:   true,
-        views:       0,
-        likes:       0,
-        saves:       0,
-        subtitles:   { ja:'', en:'', vi:'', my:'', ne:'' },
-        duration:    p.duration || '--',
-      });
-      // 店長へ通知
+      VIDEOS.push({ id:newId, title:p.title, category:p.category, description:p.description,
+        thumbnail:p.thumbnail, videoData:p.videoData, store:p.store,
+        published:true, views:0, likes:0, saves:0, subtitles:{ja:'',en:'',vi:'',my:'',ne:''}, duration:p.duration||'--' });
       const mgr = USERS.find(u => u.role==='manager' && u.store===p.store);
-      if (mgr) NOTIFICATIONS.push({
-        id: Date.now(), type:'video_request_result', userId: mgr.id,
-        message:`「${p.title}」が承認されて公開されました`,
-        createdAt: new Date().toISOString().slice(0,10), read:false,
-      });
+      if (mgr) NOTIFICATIONS.push({ id:Date.now(), type:'video_request_result', userId:mgr.id,
+        message:`「${p.title}」が承認されて公開されました`, createdAt:new Date().toISOString().slice(0,10), read:false });
       renderVideoMgmt(); renderAllVideoViews();
       showToast(`「${p.title}」を承認して公開しました ✅`);
     }
 
-    function rejectVideoRequest(pendingId) {
+    async function rejectVideoRequest(pendingId) {
+      // Firestore 動画（string id）の場合
+      if (typeof pendingId === 'string' && typeof window.rejectVideoFirestore === 'function') {
+        const p = (window._pendingVideoCache || []).find(x => x.id === pendingId)
+               || PENDING_VIDEOS.find(x => String(x.id) === pendingId);
+        await window.rejectVideoFirestore(pendingId, p?.title || '動画');
+        renderVideoMgmt();
+        return;
+      }
+      // ローカルデータ（数値 id）フォールバック
       const p = PENDING_VIDEOS.find(x => x.id === pendingId);
       if (!p) return;
       p.status = 'rejected';
       const mgr = USERS.find(u => u.role==='manager' && u.store===p.store);
-      if (mgr) NOTIFICATIONS.push({
-        id: Date.now(), type:'video_request_result', userId: mgr.id,
-        message:`「${p.title}」の申請が差し戻されました`,
-        createdAt: new Date().toISOString().slice(0,10), read:false,
-      });
+      if (mgr) NOTIFICATIONS.push({ id:Date.now(), type:'video_request_result', userId:mgr.id,
+        message:`「${p.title}」の申請が差し戻されました`, createdAt:new Date().toISOString().slice(0,10), read:false });
       renderVideoMgmt();
       showToast(`「${p.title}」を差し戻しました`);
     }
@@ -5021,7 +4975,8 @@ const staffTableRows = storeStaff.map(u => {
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-  import { getFirestore, doc, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs, onSnapshot, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { getFirestore, doc, setDoc, getDoc, updateDoc, addDoc, serverTimestamp, collection, query, where, getDocs, onSnapshot, orderBy, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAgd3NUGdTIosjPQ5Qu2bljEfcTK2T0g8E",
@@ -5032,9 +4987,10 @@ const staffTableRows = storeStaff.map(u => {
     appId: "1:659149705828:web:ffcaaf1b62e3c4f0b14571"
   };
 
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db   = getFirestore(app);
+  const app      = initializeApp(firebaseConfig);
+  const auth     = getAuth(app);
+  const db       = getFirestore(app);
+  const storage  = getStorage(app);
   const provider = new GoogleAuthProvider();
 
   // ── URLパラメータ取得 ──────────────────────────────
@@ -5216,6 +5172,129 @@ const staffTableRows = storeStaff.map(u => {
     } catch (e) {
       console.error("初期データ登録エラー:", e);
       alert("登録に失敗しました: " + e.message);
+    }
+  };
+
+  // ── 動画投稿（Storage + Firestore） ─────────────────
+  window.submitVideoToFirestore = async function () {
+    const title       = document.getElementById('vr-title')?.value.trim();
+    const category    = document.getElementById('vr-category')?.value;
+    const description = document.getElementById('vr-description')?.value.trim() || '';
+    const videoFile   = document.getElementById('vr-video')?.files[0];
+    const thumbFile   = document.getElementById('vr-thumbnail')?.files[0];
+    const cu          = typeof currentUser !== 'undefined' ? currentUser : null;
+
+    if (!title)     { if (typeof showToast === 'function') showToast('タイトルを入力してください'); return; }
+    if (!videoFile) { if (typeof showToast === 'function') showToast('動画ファイルを選択してください'); return; }
+    if (typeof showToast === 'function') showToast('アップロード中...');
+
+    try {
+      // 動画を Firebase Storage にアップロード
+      const videoRef = ref(storage, `videos/${cu?.companyId || "company_001"}/${Date.now()}_${videoFile.name}`);
+      await uploadBytes(videoRef, videoFile);
+      const videoURL = await getDownloadURL(videoRef);
+
+      // サムネイルをアップロード（任意）
+      let thumbnailURL = '';
+      if (thumbFile) {
+        const thumbRef = ref(storage, `thumbnails/${cu?.companyId || "company_001"}/${Date.now()}_${thumbFile.name}`);
+        await uploadBytes(thumbRef, thumbFile);
+        thumbnailURL = await getDownloadURL(thumbRef);
+      }
+
+      // Firestore に動画データを保存
+      await addDoc(collection(db, "videos"), {
+        title, category, description,
+        type:         "field",
+        videoURL, thumbnailURL,
+        companyId:    cu?.companyId    || "company_001",
+        storeId:      cu?.storeId      || "store_001",
+        storeName:    cu?.storeName    || cu?.storeId || "店舗",
+        uploadedBy:   auth.currentUser.uid,
+        uploaderName: cu?.name         || "未設定",
+        likes: 0, views: 0,
+        isOfficial: false,
+        published:  false,
+        status:     "pending",
+        createdAt:  serverTimestamp()
+      });
+
+      // 本部への通知を Firestore に保存
+      await addDoc(collection(db, "notifications"), {
+        type:      "video_request",
+        message:   `${cu?.storeName || cu?.storeId || "店舗"}から動画投稿申請があります：「${title}」`,
+        companyId: cu?.companyId || "company_001",
+        targetRole: "headquarters",
+        read:      false,
+        createdAt: serverTimestamp()
+      });
+
+      if (typeof showToast        === 'function') showToast('投稿申請しました。本部の確認をお待ちください。');
+      if (typeof closeVideoRequestForm === 'function') closeVideoRequestForm();
+    } catch (error) {
+      console.error("投稿エラー:", error);
+      if (typeof showToast === 'function') showToast('投稿に失敗しました: ' + error.message);
+    }
+  };
+
+  // ── 申請中動画一覧取得（本部用） ─────────────────────
+  window.loadPendingVideos = async function () {
+    const cu = typeof currentUser !== 'undefined' ? currentUser : null;
+    try {
+      const q = query(
+        collection(db, "videos"),
+        where("companyId", "==", cu?.companyId || "company_001"),
+        where("status",    "==", "pending")
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (e) {
+      console.error("申請動画取得エラー:", e);
+      return [];
+    }
+  };
+
+  // ── 動画承認（本部用） ────────────────────────────────
+  window.approveVideoFirestore = async function (videoId, title) {
+    try {
+      await updateDoc(doc(db, "videos", videoId), {
+        published:  true,
+        status:     "approved",
+        approvedBy: auth.currentUser.uid,
+        approvedAt: serverTimestamp()
+      });
+      if (typeof showToast === 'function') showToast(`「${title}」を承認して公開しました ✅`);
+      // フィードキャッシュをリセット
+      if (typeof firestoreVideos !== 'undefined') { try { firestoreVideos = null; } catch(e){} }
+    } catch (e) {
+      console.error("承認エラー:", e);
+      if (typeof showToast === 'function') showToast('承認に失敗しました: ' + e.message);
+    }
+  };
+
+  // ── 動画差し戻し（本部用） ────────────────────────────
+  window.rejectVideoFirestore = async function (videoId, title) {
+    try {
+      await updateDoc(doc(db, "videos", videoId), {
+        published:  false,
+        status:     "rejected",
+        rejectedBy: auth.currentUser.uid,
+        rejectedAt: serverTimestamp()
+      });
+      if (typeof showToast === 'function') showToast(`「${title}」を差し戻しました`);
+    } catch (e) {
+      console.error("差し戻しエラー:", e);
+      if (typeof showToast === 'function') showToast('差し戻しに失敗しました: ' + e.message);
+    }
+  };
+
+  // ── いいね（Firestore increment） ────────────────────
+  window.likeVideo = async function (videoId) {
+    try {
+      await updateDoc(doc(db, "videos", videoId), { likes: increment(1) });
+      if (typeof showToast === 'function') showToast('いいね！');
+    } catch (e) {
+      console.warn("いいねエラー:", e);
     }
   };
 
