@@ -2350,7 +2350,9 @@ const myStore = currentUser.store;
 
 content.innerHTML = `<div style="padding:24px;color:var(--text-secondary)">スタッフ情報を読み込み中...</div>`;
 
-const storeStaff = await loadStoreStaffFromFirestore();
+const storeStaff = window.fetchStoreStaff
+  ? await window.fetchStoreStaff()
+  : USERS.filter(u => u.role === 'staff' && u.store === myStore);
 
 const avgMastery = storeStaff.length
   ? Math.round(storeStaff.reduce((sum, u) => sum + calcSkillPercent(u), 0) / storeStaff.length)
@@ -2443,14 +2445,14 @@ const staffTableRows = storeStaff.map(u => {
             <div class="kpi-icon" style="background:var(--primary)20;color:var(--primary)"><i class="fa-solid fa-users"></i></div>
             <div class="kpi-body">
               <div class="kpi-label">在籍スタッフ数</div>
-              <div class="kpi-value">${storeStaff.length}名</div>
+              <div class="kpi-value" id="kpi-staff-count">${storeStaff.length}名</div>
             </div>
           </div>
           <div class="kpi-card" style="cursor:default">
             <div class="kpi-icon" style="background:var(--success)20;color:var(--success)"><i class="fa-solid fa-chart-line"></i></div>
             <div class="kpi-body">
               <div class="kpi-label">平均習熟度</div>
-              <div class="kpi-value">${avgMastery}%</div>
+              <div class="kpi-value" id="kpi-avg-mastery">${avgMastery}%</div>
             </div>
           </div>
           <div class="kpi-card kpi-card-hover" style="cursor:pointer;position:relative" onclick="managerNavigateTo('taskMgmt')">
@@ -2464,7 +2466,7 @@ const staffTableRows = storeStaff.map(u => {
             <div class="kpi-icon" style="background:var(--danger)20;color:var(--danger)"><i class="fa-solid fa-heart"></i></div>
             <div class="kpi-body">
               <div class="kpi-label">フォロー必要人数</div>
-              <div class="kpi-value">${followTargets.length}名</div>
+              <div class="kpi-value" id="kpi-follow-count">${followTargets.length}名</div>
             </div>
             ${followNames ? `<div class="kpi-tooltip">${followNames}</div>` : ''}
           </div>
@@ -2472,7 +2474,7 @@ const staffTableRows = storeStaff.map(u => {
 
         <div class="page-card" style="margin-top:20px">
           <div class="page-card-title"><i class="fa-solid fa-hand-holding-heart" style="color:var(--primary);margin-right:6px"></i>育成フォローが必要なスタッフ</div>
-          ${followHtml}
+          <div id="follow-targets-list">${followHtml}</div>
         </div>
 
                 <div class="page-card" style="margin-top:20px">
@@ -2498,12 +2500,58 @@ const staffTableRows = storeStaff.map(u => {
                   <th style="text-align:left;padding:10px 12px;border-bottom:2px solid var(--border)">チェック状況</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody id="staff-mastery-tbody">
                 ${staffTableRows}
               </tbody>
             </table>
           </div>
         </div>`;
+
+      // リアルタイムリスナーを起動（以降のスキル更新が自動反映）
+      if (typeof window.loadStoreStaff === 'function') window.loadStoreStaff();
+    }
+
+    // リアルタイム更新：スタッフスキル習得状況を再描画
+    function renderManagerStaffList(staffList) {
+      const avgMastery = staffList.length
+        ? Math.round(staffList.reduce((sum, u) => sum + calcSkillPercent(u), 0) / staffList.length)
+        : 0;
+      const followTargets = staffList.filter(u => calcSkillPercent(u) < 100);
+
+      // KPI更新
+      const elCount  = document.getElementById('kpi-staff-count');
+      const elAvg    = document.getElementById('kpi-avg-mastery');
+      const elFollow = document.getElementById('kpi-follow-count');
+      if (elCount)  elCount.textContent  = staffList.length + '名';
+      if (elAvg)    elAvg.textContent    = avgMastery + '%';
+      if (elFollow) elFollow.textContent = followTargets.length + '名';
+
+      // フォロー対象一覧更新
+      const followEl = document.getElementById('follow-targets-list');
+      if (followEl) {
+        followEl.innerHTML = followTargets.length
+          ? followTargets.map(u => `<div class="follow-card">
+              <div><div class="follow-name">${u.name || "未設定"}</div>
+              <div class="follow-hours">習得率 ${calcSkillPercent(u)}%</div></div>
+              <button class="btn-send-task" onclick="managerNavigateTo('taskMgmt')">タスクを送る</button>
+            </div>`).join('')
+          : '<div style="font-size:13px;color:var(--text-muted)"><i class="fa-solid fa-check-circle" style="color:var(--success);margin-right:4px"></i>フォロー対象なし</div>';
+      }
+
+      // スタッフ習得状況テーブル更新
+      const tbody = document.getElementById('staff-mastery-tbody');
+      if (tbody) {
+        tbody.innerHTML = staffList.map(u => {
+          const pct = calcSkillPercent(u);
+          return `<tr>
+            <td style="padding:10px 12px;border-bottom:1px solid var(--border)">${u.name || "未設定"}</td>
+            <td style="padding:10px 12px;border-bottom:1px solid var(--border)">${pct}%</td>
+            <td style="padding:10px 12px;border-bottom:1px solid var(--border)">
+              ${STAFF_SKILL_CHECKS.map(skill => (u.skillChecks?.[skill.id] ? '○' : '×')).join(' / ')}
+            </td>
+          </tr>`;
+        }).join('');
+      }
     }
 
     function checkVideoDuration(input) {
@@ -4921,7 +4969,7 @@ const staffTableRows = storeStaff.map(u => {
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-  import { getFirestore, doc, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { getFirestore, doc, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAgd3NUGdTIosjPQ5Qu2bljEfcTK2T0g8E",
@@ -5017,20 +5065,63 @@ const staffTableRows = storeStaff.map(u => {
   // ── スキル保存 ─────────────────────────────────────
   window.updateSkill = async function (skillId, value) {
     const firebaseUser = auth.currentUser;
-    if (!firebaseUser) { alert("ログインしてください"); return; }
+    if (!firebaseUser) return;
     try {
       await setDoc(doc(db, "users", firebaseUser.uid), {
         skillChecks: { [skillId]: value },
         lastUpdatedAt: serverTimestamp()
       }, { merge: true });
-      window._currentUser = window._currentUser || {};
-      window._currentUser.skillChecks = window._currentUser.skillChecks || {};
-      window._currentUser.skillChecks[skillId] = value;
-      renderSkills();
+      const cu = typeof currentUser !== 'undefined' ? currentUser : null;
+      if (cu) {
+        if (!cu.skillChecks) cu.skillChecks = {};
+        cu.skillChecks[skillId] = value;
+      }
+      if (typeof renderSkills === 'function') renderSkills();
+      if (typeof showToast === 'function') showToast('保存しました');
     } catch (error) {
       console.error("スキル保存エラー:", error);
-      alert("保存に失敗しました: " + error.message);
+      if (typeof showToast === 'function') showToast('保存に失敗しました');
     }
+  };
+
+  // ── 店舗スタッフ一回取得（ダッシュボード初期表示用） ───
+  window.fetchStoreStaff = async function () {
+    const cu = typeof currentUser !== 'undefined' ? currentUser : null;
+    if (!cu?.storeId) return [];
+    try {
+      const q    = query(collection(db, "users"), where("storeId", "==", cu.storeId), where("role", "==", "staff"));
+      const snap = await getDocs(q);
+      return snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+    } catch (e) {
+      console.warn("スタッフ取得エラー:", e);
+      return [];
+    }
+  };
+
+  // ── リアルタイムリスナー（店長ダッシュボード用） ─────
+  let _unsubStoreStaff = null;
+  window.loadStoreStaff = function () {
+    const cu = typeof currentUser !== 'undefined' ? currentUser : null;
+    if (!cu || cu.role !== 'manager') return;
+
+    // 既存リスナー解除
+    if (_unsubStoreStaff) { _unsubStoreStaff(); _unsubStoreStaff = null; }
+
+    const q = query(
+      collection(db, "users"),
+      where("storeId", "==", cu.storeId),
+      where("role", "==", "staff")
+    );
+    _unsubStoreStaff = onSnapshot(q, (snapshot) => {
+      const staffList = snapshot.docs.map(d => ({ uid: d.id, ...d.data() }));
+      if (typeof renderManagerStaffList === 'function') renderManagerStaffList(staffList);
+    }, (err) => {
+      console.error("リアルタイム取得エラー:", err);
+    });
+  };
+
+  window.unsubStoreStaff = function () {
+    if (_unsubStoreStaff) { _unsubStoreStaff(); _unsubStoreStaff = null; }
   };
 
   // ── 招待リンク発行 ─────────────────────────────────
