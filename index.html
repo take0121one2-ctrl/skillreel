@@ -1793,6 +1793,7 @@ skillChecks: firestoreUserData?.skillChecks || {}
     let detailPanelVisible = false;
     let currentFeedVideos  = [];
     let currentFeedIndex   = 0;
+    let firestoreVideos    = null; // Firestoreから取得した動画キャッシュ
 
     function renderStaffUI() {
       const hasNotif = NOTIFICATIONS.some(n => !n.read);
@@ -1850,7 +1851,7 @@ skillChecks: firestoreUserData?.skillChecks || {}
       content.style.overflowY = noScroll ? 'hidden' : 'auto';
       content.style.overflowX = 'hidden';
       switch (currentPage) {
-        case 'feed':    renderFeed();    break;
+        case 'feed':    initFeed();      break;
         case 'skills':  renderSkills();  break;
         case 'recipes': renderRecipes(); break;
         case 'aicoach': renderAicoach(); break;
@@ -1872,16 +1873,17 @@ skillChecks: firestoreUserData?.skillChecks || {}
     };
 
     function getFilteredVideos() {
+      const sourceVideos = firestoreVideos || VIDEOS;
       let videos;
       if (feedTab === 'unwatched') {
         const doneIds = TASKS
           .filter(tk => tk.assignedTo === currentUser.id && tk.status !== 'unwatched')
           .map(tk => tk.contentId);
-        videos = VIDEOS.filter(v => v.published && !doneIds.includes(v.id));
+        videos = sourceVideos.filter(v => v.published && !doneIds.includes(v.id));
       } else if (feedTab === 'category' && feedCategory) {
-        videos = VIDEOS.filter(v => v.published && v.category === feedCategory);
+        videos = sourceVideos.filter(v => v.published && v.category === feedCategory);
       } else {
-        videos = VIDEOS.filter(v => v.published);
+        videos = sourceVideos.filter(v => v.published);
       }
       if (feedSearch) {
         const q = feedSearch.toLowerCase();
@@ -1905,6 +1907,26 @@ skillChecks: firestoreUserData?.skillChecks || {}
       return videos;
     }
 
+    async function initFeed() {
+      if (!currentUser) return;
+      // キャッシュがあればそのまま表示
+      if (firestoreVideos !== null) { renderFeed(); return; }
+
+      const content = document.getElementById('main-content');
+      content.innerHTML = `<div class="feed-wrapper" style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:12px;color:rgba(255,255,255,0.6);font-size:14px">
+        <i class="fa-solid fa-spinner fa-spin" style="font-size:28px"></i>動画を読み込み中...</div>`;
+
+      try {
+        if (typeof window.loadVideos === 'function') {
+          const loaded = await window.loadVideos(currentUser.companyId || "company_001");
+          firestoreVideos = loaded.length > 0 ? loaded : null;
+        }
+      } catch (e) {
+        console.warn("Firestore動画取得失敗、ローカルデータで表示:", e);
+      }
+      renderFeed();
+    }
+
     function renderFeed() {
       const content = document.getElementById('main-content');
       const videos  = getFilteredVideos();
@@ -1918,30 +1940,41 @@ skillChecks: firestoreUserData?.skillChecks || {}
         </div>` : '';
 
       const slidesHtml = videos.map((v, i) => {
-        const subtitle  = (v.subtitles && (v.subtitles[currentLang] || v.subtitles['ja'])) || '';
-        const liked     = !!likedVideos[v.id];
-        const likeCount = v.views + (liked ? 1 : 0);
+        const subtitle   = (v.subtitles && (v.subtitles[currentLang] || v.subtitles['ja'])) || '';
+        const liked      = !!likedVideos[v.id];
+        const likeCount  = (v.likes || v.views || 0) + (liked ? 1 : 0);
+        const vidIdStr   = typeof v.id === 'string' ? `'${v.id}'` : v.id;
+        const typeBadge  = v.type === 'official'
+          ? `<span style="position:absolute;top:12px;left:12px;background:var(--primary);color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;z-index:3;pointer-events:none">公式</span>`
+          : v.type === 'field'
+          ? `<span style="position:absolute;top:12px;left:12px;background:var(--accent);color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;z-index:3;pointer-events:none">現場ナレッジ</span>`
+          : '';
         return `
           <div class="feed-slide" data-index="${i}" onclick="toggleFeedDetailPanel(${i})">
             ${renderFeedVideoPlayer(v)}
+            ${typeBadge}
 
             <div class="feed-counter">${i + 1} / ${videos.length}</div>
 
             <!-- 常時表示：カテゴリ＋タイトル -->
             <div class="feed-minimal-info">
               <div class="category-badge">${v.category}</div>
-              <div class="video-title">${v.title}</div>
+              <div class="video-title">${v.title}${v.isOfficial ? ' <span style="color:gold;font-size:10px">★</span>' : ''}</div>
+              <div style="font-size:11px;color:rgba(255,255,255,0.55);margin-top:3px">
+                <i class="fa-solid fa-eye" style="margin-right:3px"></i>${v.views||0}
+                ${v.uploaderName ? `&nbsp;·&nbsp;${v.uploaderName}` : ''}
+              </div>
             </div>
 
             <!-- 常時表示：いいね＋保存 -->
             <div class="feed-actions">
               <button class="feed-action-btn ${liked ? 'liked' : ''}"
-                onclick="event.stopPropagation();toggleLike(${v.id},this)">
+                onclick="event.stopPropagation();toggleLike(${vidIdStr},this)">
                 <i class="fa-${liked ? 'solid' : 'regular'} fa-heart"></i>
                 <span>${likeCount}</span>
               </button>
               <button class="feed-action-btn"
-                onclick="event.stopPropagation();toggleSave(${v.id},this)">
+                onclick="event.stopPropagation();toggleSave(${vidIdStr},this)">
                 <i class="fa-${savedVideos[v.id] ? 'solid' : 'regular'} fa-bookmark"></i>
                 <span>保存</span>
               </button>
@@ -1959,7 +1992,7 @@ skillChecks: firestoreUserData?.skillChecks || {}
               <div class="panel-description">${v.description || ''}</div>
               ${subtitle ? `<div class="panel-subtitle-label">字幕</div><div class="panel-subtitle">${subtitle}</div>` : ''}
               <div class="panel-actions">
-                <button class="btn-understood" onclick="event.stopPropagation();markUnderstood(${v.id},${i})">
+                <button class="btn-understood" onclick="event.stopPropagation();markUnderstood(${vidIdStr},${i})">
                   <i class="fa-solid fa-thumbs-up"></i> 理解できた
                 </button>
                 <button class="btn-rewatch" onclick="event.stopPropagation();closeFeedDetailPanel()">もう一度見る</button>
@@ -2030,9 +2063,10 @@ skillChecks: firestoreUserData?.skillChecks || {}
     function toggleLike(videoId, btn) {
       likedVideos[videoId] = !likedVideos[videoId];
       const liked = likedVideos[videoId];
-      const v = VIDEOS.find(v => v.id === videoId);
+      const allVids = firestoreVideos || VIDEOS;
+      const v = allVids.find(v => String(v.id) === String(videoId));
       btn.querySelector('i').className = `fa-${liked ? 'solid' : 'regular'} fa-heart`;
-      btn.querySelector('span').textContent = v.views + (liked ? 1 : 0);
+      btn.querySelector('span').textContent = ((v?.likes || v?.views) || 0) + (liked ? 1 : 0);
       btn.classList.toggle('liked', liked);
     }
 
@@ -3795,6 +3829,16 @@ const staffTableRows = storeStaff.map(u => {
     }
 
     function renderFeedVideoPlayer(video) {
+      // Firebase Storage URL
+      if (video.videoURL && video.videoURL.startsWith('http')) {
+        return `<video id="feed-video-${video.id}" src="${video.videoURL}"
+          style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0"
+          playsinline loop muted autoplay></video>`;
+      }
+      if (video.thumbnailURL && video.thumbnailURL.startsWith('http')) {
+        return `<img src="${video.thumbnailURL}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0" alt="${video.title||''}">`;
+      }
+      // base64 データ（旧形式互換）
       if (video.videoData && video.videoData.startsWith('data:video')) {
         return `<video id="feed-video-${video.id}" src="${video.videoData}"
           style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0"
@@ -4096,6 +4140,14 @@ const staffTableRows = storeStaff.map(u => {
           <div class="hq-chart-card">
             ${rankHtml}
             <p style="font-size:12px;color:var(--text-muted);margin-top:12px">人気コンテンツを参考に、より多く見られる動画を追加しましょう</p>
+          </div>
+
+          <div class="hq-section-title" style="margin-top:24px"><i class="fa-solid fa-database" style="color:var(--warning);margin-right:6px"></i>開発ツール</div>
+          <div class="hq-card">
+            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">Firestoreにダミー動画データを登録します。初回セットアップ時に1回だけ実行してください。</p>
+            <button class="btn-primary-sm" onclick="seedDummyVideos()" style="background:var(--warning);border-color:var(--warning)">
+              <i class="fa-solid fa-plus"></i> 初期データを登録する（開発用）
+            </button>
           </div>
         </div>`;
     }
@@ -4969,7 +5021,7 @@ const staffTableRows = storeStaff.map(u => {
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-  import { getFirestore, doc, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { getFirestore, doc, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs, onSnapshot, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAgd3NUGdTIosjPQ5Qu2bljEfcTK2T0g8E",
@@ -5122,6 +5174,49 @@ const staffTableRows = storeStaff.map(u => {
 
   window.unsubStoreStaff = function () {
     if (_unsubStoreStaff) { _unsubStoreStaff(); _unsubStoreStaff = null; }
+  };
+
+  // ── 動画一覧取得（Firestore） ────────────────────────
+  window.loadVideos = async function (companyId) {
+    try {
+      const q = query(
+        collection(db, "videos"),
+        where("companyId", "==", companyId),
+        where("published", "==", true),
+        orderBy("createdAt", "desc")
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (e) {
+      console.warn("動画取得エラー:", e);
+      return [];
+    }
+  };
+
+  // ── ダミー動画登録（開発用） ─────────────────────────
+  window.seedDummyVideos = async function () {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) { alert("ログインしてください"); return; }
+
+    const dummyVideos = [
+      { title:"ねぎまの仕込み",         description:"串打ちから焼き上げまでの基本手順",           category:"焼き",         type:"official", companyId:"company_001", storeId:null,       uploaderName:"本部",    storeName:"全店共通", likes:12, views:48, isOfficial:true,  published:true },
+      { title:"レモンサワーの作り方",   description:"黄金比レシピ",                               category:"ドリンク",     type:"official", companyId:"company_001", storeId:null,       uploaderName:"本部",    storeName:"全店共通", likes:24, views:67, isOfficial:true,  published:true },
+      { title:"席案内の流れ",           description:"お客様を席まで案内する一連の動作",           category:"ホール",       type:"official", companyId:"company_001", storeId:null,       uploaderName:"本部",    storeName:"全店共通", likes:31, views:89, isOfficial:true,  published:true },
+      { title:"洗い場の回し方（現場ナレッジ）", description:"ピーク時に洗い場を効率よく回すコツ", category:"オペレーション", type:"field",    companyId:"company_001", storeId:"store_001", uploaderName:"山田店長", storeName:"五反田店", likes:8,  views:21, isOfficial:false, published:true }
+    ];
+
+    try {
+      for (const v of dummyVideos) {
+        const newRef = doc(collection(db, "videos"));
+        await setDoc(newRef, { ...v, uploadedBy: firebaseUser.uid, videoURL: "", thumbnailURL: "", createdAt: serverTimestamp() });
+      }
+      if (typeof showToast === 'function') showToast('初期データを登録しました ✅');
+      // キャッシュをリセットして再読み込み
+      if (typeof window !== 'undefined') window._firestoreVideoCache = null;
+    } catch (e) {
+      console.error("初期データ登録エラー:", e);
+      alert("登録に失敗しました: " + e.message);
+    }
   };
 
   // ── 招待リンク発行 ─────────────────────────────────
