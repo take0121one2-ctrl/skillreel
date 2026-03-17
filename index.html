@@ -1793,7 +1793,10 @@ skillChecks: firestoreUserData?.skillChecks || {}
     let detailPanelVisible = false;
     let currentFeedVideos  = [];
     let currentFeedIndex   = 0;
-    let firestoreVideos    = null; // Firestoreから取得した動画キャッシュ
+    let firestoreVideos       = null; // Firestoreから取得した動画キャッシュ
+    let firestoreMyTasks      = null; // Firestoreから取得したマイタスク（スタッフ用）
+    let firestoreTaskStaff    = null; // Firestoreから取得したスタッフ（タスク管理用）
+    let firestoreStoreTasksCache = null; // Firestoreから取得した送信済みタスク（店長用）
 
     function renderStaffUI() {
       const hasNotif = NOTIFICATIONS.some(n => !n.read);
@@ -1874,12 +1877,15 @@ skillChecks: firestoreUserData?.skillChecks || {}
 
     function getFilteredVideos() {
       const sourceVideos = firestoreVideos || VIDEOS;
+      // Firestoreタスクがあればそれを使用、なければローカルTASKSをフィルタ
+      const sourceTasks = firestoreMyTasks
+        || TASKS.filter(tk => tk.assignedTo === currentUser?.id);
       let videos;
       if (feedTab === 'unwatched') {
-        const doneIds = TASKS
-          .filter(tk => tk.assignedTo === currentUser.id && tk.status !== 'unwatched')
-          .map(tk => tk.contentId);
-        videos = sourceVideos.filter(v => v.published && !doneIds.includes(v.id));
+        const doneIds = sourceTasks
+          .filter(tk => tk.status !== 'unwatched')
+          .map(tk => String(tk.videoId || tk.contentId));
+        videos = sourceVideos.filter(v => v.published && !doneIds.includes(String(v.id)));
       } else if (feedTab === 'category' && feedCategory) {
         videos = sourceVideos.filter(v => v.published && v.category === feedCategory);
       } else {
@@ -1895,12 +1901,12 @@ skillChecks: firestoreUserData?.skillChecks || {}
       }
       // 優先タスクのコンテンツを先頭に
       if (currentUser) {
-        const priorityIds = TASKS
-          .filter(tk => tk.assignedTo===currentUser.id && tk.priority && tk.status==='unwatched')
-          .map(tk => tk.contentId);
+        const priorityIds = sourceTasks
+          .filter(tk => tk.priority && tk.status === 'unwatched')
+          .map(tk => String(tk.videoId || tk.contentId));
         if (priorityIds.length) {
-          const priority = videos.filter(v => priorityIds.includes(v.id));
-          const rest     = videos.filter(v => !priorityIds.includes(v.id));
+          const priority = videos.filter(v => priorityIds.includes(String(v.id)));
+          const rest     = videos.filter(v => !priorityIds.includes(String(v.id)));
           videos = [...priority, ...rest];
         }
       }
@@ -1920,6 +1926,11 @@ skillChecks: firestoreUserData?.skillChecks || {}
         if (typeof window.loadVideos === 'function') {
           const loaded = await window.loadVideos(currentUser.companyId || "company_001");
           firestoreVideos = loaded.length > 0 ? loaded : null;
+        }
+        // スタッフ用: 自分のタスク一覧を取得してフィード優先表示に使う
+        if (currentUser?.role === 'staff' && typeof window.loadMyTasks === 'function') {
+          const myTasks = await window.loadMyTasks();
+          if (myTasks.length > 0) firestoreMyTasks = myTasks;
         }
       } catch (e) {
         console.warn("Firestore動画取得失敗、ローカルデータで表示:", e);
@@ -2816,23 +2827,45 @@ const staffTableRows = storeStaff.map(u => {
     }
 
     /* ---- タスク管理 ---- */
-    function renderTaskMgmt() {
-      const content    = document.getElementById('main-content');
-      const storeStaff = USERS.filter(u => u.role==='staff' && u.store===currentUser.store);
+    async function renderTaskMgmt() {
+      const content = document.getElementById('main-content');
 
-      const staffChecks = storeStaff.map(u => `
-        <div class="staff-check-item ${selectedStaffs.has(u.id)?'selected':''}"
-          onclick="toggleStaff(${u.id})">
-          <i class="fa-${selectedStaffs.has(u.id)?'solid':'regular'} fa-square-check"></i>${u.name}
-        </div>`).join('');
+      // 初回: Firestoreからスタッフ・タスクをロード
+      if (firestoreTaskStaff === null && typeof window.fetchStoreStaff === 'function') {
+        content.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)">
+          <i class="fa-solid fa-spinner fa-spin" style="font-size:24px"></i></div>`;
+        firestoreTaskStaff = await window.fetchStoreStaff() || [];
+      }
+      if (firestoreStoreTasksCache === null && typeof window.loadStoreTasks === 'function') {
+        firestoreStoreTasksCache = await window.loadStoreTasks() || [];
+      }
 
-      const items = taskContentType === 'video'
-        ? VIDEOS.filter(v=>v.published) : RECIPES;
-      const contentChecks = items.map(item => {
+      // Firestoreスタッフ優先、なければローカルUSERS
+      const useFirestoreStaff = firestoreTaskStaff && firestoreTaskStaff.length > 0;
+      const storeStaff = useFirestoreStaff
+        ? firestoreTaskStaff
+        : USERS.filter(u => u.role==='staff' && u.store===currentUser.store);
+
+      // スタッフ選択リスト（Firestoreではu.uid、ローカルではu.id）
+      const staffChecks = storeStaff.map(u => {
+        const sid = useFirestoreStaff ? u.uid : u.id;
+        const sidExpr = useFirestoreStaff ? `'${u.uid}'` : u.id;
+        const sel = selectedStaffs.has(sid);
+        return `<div class="staff-check-item ${sel?'selected':''}" onclick="toggleStaff(${sidExpr})">
+          <i class="fa-${sel?'solid':'regular'} fa-square-check"></i>${u.name}
+        </div>`;
+      }).join('');
+
+      // コンテンツ選択リスト（Firestoreビデオ優先）
+      const videoSource = taskContentType === 'video'
+        ? (firestoreVideos || VIDEOS).filter(v => v.published) : RECIPES;
+      const contentChecks = videoSource.map(item => {
         const title = taskContentType==='video' ? item.title
           : (typeof item.title==='object' ? item.title[currentLang]||item.title.ja : item.title);
-        const sel = selectedContents.has(item.id);
-        return `<div class="content-check-item ${sel?'selected':''}" onclick="toggleContent(${item.id})">
+        const itemId = item.id;
+        const idExpr = typeof itemId === 'string' ? `'${itemId}'` : itemId;
+        const sel = selectedContents.has(itemId);
+        return `<div class="content-check-item ${sel?'selected':''}" onclick="toggleContent(${idExpr})">
           <i class="fa-${sel?'solid':'regular'} fa-square-check"></i>${title}
           ${taskContentType==='video'?`<span style="font-size:11px;color:var(--text-muted);margin-left:auto">${item.category}</span>`:''}
         </div>`;
@@ -2840,12 +2873,18 @@ const staffTableRows = storeStaff.map(u => {
 
       const selCount = selectedStaffs.size * selectedContents.size;
 
+      // 全員選択ボタン用UIDリスト
+      const allSidExprs = storeStaff.map(u => useFirestoreStaff ? `'${u.uid}'` : u.id);
+      const selectAllOnclick = allSidExprs.length
+        ? `[${allSidExprs}].forEach(id=>selectedStaffs.add(id));renderTaskMgmt()`
+        : '';
+
       const formInner = taskFormOpen ? `
         <div class="task-accordion-body">
           <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">① スタッフを選択</div>
           <div class="staff-check-list" style="max-height:200px;overflow-y:auto">${staffChecks}</div>
           <button class="btn-select-all" style="margin-bottom:12px"
-            onclick="${storeStaff.map(u=>u.id).join(',') ? `[${storeStaff.map(u=>u.id)}].forEach(id=>selectedStaffs.add(id));renderTaskMgmt()` : ''}">全員選択</button>
+            onclick="${selectAllOnclick}">全員選択</button>
           <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">② コンテンツを選択</div>
           <div class="content-tabs">
             <button class="content-tab ${taskContentType==='video'?'active':''}" onclick="switchTaskContent('video')">動画</button>
@@ -2861,19 +2900,25 @@ const staffTableRows = storeStaff.map(u => {
           </div>
         </div>` : '';
 
-      let filteredTasks = TASKS.filter(tk => storeStaff.some(u => u.id===tk.assignedTo));
+      // 送信済みタスク: Firestore優先
+      const useFirestoreTasks = firestoreStoreTasksCache && firestoreStoreTasksCache.length > 0;
+      let filteredTasks = useFirestoreTasks
+        ? firestoreStoreTasksCache
+        : TASKS.filter(tk => storeStaff.some(u => (u.uid||u.id) === tk.assignedTo || u.id === tk.assignedTo));
       if (taskTab !== 'all') filteredTasks = filteredTasks.filter(tk => tk.status===taskTab);
 
       const STATUS_BG = { unwatched:'#F3F4F6', watched:'var(--info-light)', confirmed:'var(--success-light)' };
       const taskCards = filteredTasks.length ? filteredTasks.map(tk => {
-        const staff = USERS.find(u => u.id===tk.assignedTo);
+        const staffObj = storeStaff.find(u => (u.uid||u.id) === tk.assignedTo || u.id === tk.assignedTo);
+        const staffName = staffObj?.name || tk.assigneeName || '?';
         const bg = STATUS_BG[tk.status] || '#F3F4F6';
+        const tkIdExpr = typeof tk.id === 'string' ? `'${tk.id}'` : tk.id;
         return `<div class="task-card" style="background:${bg}">
           <div class="task-card-info">
-            <div class="task-card-title">${tk.title}${tk.priority?'<span style="margin-left:6px;font-size:10px;background:var(--accent);color:white;padding:2px 6px;border-radius:4px">優先</span>':''}</div>
-            <div class="task-card-meta">${staff?staff.name:'?'} · 期日: ${tk.dueDate}</div>
+            <div class="task-card-title">${tk.videoTitle||tk.title||'タスク'}${tk.priority?'<span style="margin-left:6px;font-size:10px;background:var(--accent);color:white;padding:2px 6px;border-radius:4px">優先</span>':''}</div>
+            <div class="task-card-meta">${staffName} · 期日: ${tk.dueDate||'—'}</div>
           </div>
-          <select class="task-status-select" onchange="updateTaskStatus(${tk.id},this.value)"
+          <select class="task-status-select" onchange="updateTaskStatus(${tkIdExpr},this.value)"
             style="background:${bg}">
             <option value="unwatched" ${tk.status==='unwatched'?'selected':''}>未視聴</option>
             <option value="watched"   ${tk.status==='watched'  ?'selected':''}>視聴済み</option>
@@ -2890,7 +2935,12 @@ const staffTableRows = storeStaff.map(u => {
           ${formInner}
         </div>
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:20px;margin-top:16px">
-          <div class="form-section-title">送信済みタスク</div>
+          <div class="form-section-title" style="display:flex;align-items:center;justify-content:space-between">
+            送信済みタスク
+            <button class="btn-secondary" style="font-size:12px;padding:4px 10px" onclick="firestoreStoreTasksCache=null;renderTaskMgmt()">
+              <i class="fa-solid fa-rotate-right"></i> 更新
+            </button>
+          </div>
           <div class="status-tabs">
             ${['all','unwatched','watched','confirmed'].map(s =>
               `<button class="status-tab ${taskTab===s?'active':''}" onclick="taskTab='${s}';renderTaskMgmt()">
@@ -2912,44 +2962,79 @@ const staffTableRows = storeStaff.map(u => {
       renderTaskMgmt();
     }
     function updateTaskStatus(taskId, newStatus) {
-      const task = TASKS.find(t => t.id === taskId);
-      if (task) task.status = newStatus;
+      // Firestore IDの場合（文字列）はFirestore更新
+      if (typeof taskId === 'string' && typeof window.updateTaskFirestore === 'function') {
+        window.updateTaskFirestore(taskId, newStatus);
+        // ローカルキャッシュも更新
+        if (firestoreStoreTasksCache) {
+          const tk = firestoreStoreTasksCache.find(t => t.id === taskId);
+          if (tk) tk.status = newStatus;
+        }
+      } else {
+        const task = TASKS.find(t => t.id === taskId);
+        if (task) task.status = newStatus;
+      }
       renderTaskMgmt();
     }
-    function submitTasks() {
+    async function submitTasks() {
       if (!selectedStaffs.size)   { showToast('スタッフを選択してください');   return; }
       if (!selectedContents.size) { showToast('コンテンツを選択してください'); return; }
       if (!taskDueDateVal)        { showToast('期日を設定してください');        return; }
       const total = selectedStaffs.size * selectedContents.size;
-      selectedStaffs.forEach(staffId => {
-        selectedContents.forEach(contentId => {
-          const isVideo = VIDEOS.some(v=>v.id===contentId);
-          const item = isVideo ? VIDEOS.find(v=>v.id===contentId) : RECIPES.find(r=>r.id===contentId);
-          const title = typeof item?.title==='object' ? item.title.ja : (item?.title||'タスク');
-          TASKS.push({
+      const staffUids = [...selectedStaffs];
+      const useFirestore = firestoreTaskStaff && firestoreTaskStaff.length > 0
+        && typeof window.sendTaskToFirestore === 'function';
+
+      if (useFirestore) {
+        // Firestore保存
+        for (const contentId of selectedContents) {
+          const allVids = firestoreVideos || VIDEOS;
+          const item = allVids.find(v => String(v.id) === String(contentId))
+            || VIDEOS.find(v => v.id === contentId);
+          const title = typeof item?.title === 'object' ? item.title.ja : (item?.title || 'タスク');
+          await window.sendTaskToFirestore(staffUids, contentId, title, taskDueDateVal);
+        }
+        firestoreStoreTasksCache = null; // 再読み込みを促す
+      } else {
+        // ローカルフォールバック
+        selectedStaffs.forEach(staffId => {
+          selectedContents.forEach(contentId => {
+            const isVideo = VIDEOS.some(v => v.id === contentId);
+            const item = isVideo ? VIDEOS.find(v => v.id === contentId) : RECIPES.find(r => r.id === contentId);
+            const title = typeof item?.title === 'object' ? item.title.ja : (item?.title || 'タスク');
+            TASKS.push({
+              id: Date.now() + Math.random(),
+              title, type: isVideo ? 'video' : 'recipe',
+              contentId, assignedTo: staffId,
+              status: 'unwatched', dueDate: taskDueDateVal,
+              priority: true,
+            });
+          });
+          NOTIFICATIONS.push({
             id: Date.now() + Math.random(),
-            title, type: isVideo ? 'video' : 'recipe',
-            contentId, assignedTo: staffId,
-            status: 'unwatched', dueDate: taskDueDateVal,
-            priority: true,
+            type: 'task', userId: staffId,
+            message: 'タスクが届いています。確認しましょう',
+            createdAt: new Date().toISOString().split('T')[0],
+            read: false,
           });
         });
-        NOTIFICATIONS.push({
-          id: Date.now() + Math.random(),
-          type: 'task', userId: staffId,
-          message: 'タスクが届いています。確認しましょう',
-          createdAt: new Date().toISOString().split('T')[0],
-          read: false,
-        });
-      });
+      }
       selectedStaffs.clear(); selectedContents.clear();
       taskDueDateVal = ''; taskFormOpen = false;
       showToast(`${total}件のタスクを送信しました ✅`);
       renderTaskMgmt(); renderAllVideoViews();
     }
     function confirmTask(taskId) {
-      const tk = TASKS.find(t=>t.id===taskId);
-      if (tk) tk.status = 'confirmed';
+      if (typeof taskId === 'string' && typeof window.updateTaskFirestore === 'function') {
+        window.updateTaskFirestore(taskId, 'confirmed');
+        if (firestoreStoreTasksCache) {
+          const tk = firestoreStoreTasksCache.find(t => t.id === taskId);
+          if (tk) tk.status = 'confirmed';
+        }
+      } else {
+        const tk = TASKS.find(t => t.id === taskId);
+        if (tk) tk.status = 'confirmed';
+      }
       renderTaskMgmt(); showToast('確認済みにしました ✅');
     }
 
@@ -3558,9 +3643,11 @@ const staffTableRows = storeStaff.map(u => {
            </div>`
         : '<div class="mypage-badge-empty">まだバッジがありません</div>';
 
-      const doneTasks = TASKS
-        .filter(tk => tk.assignedTo === user.id && tk.status !== 'unwatched')
-        .sort((a, b) => b.dueDate.localeCompare(a.dueDate));
+      const taskSource = firestoreMyTasks
+        || TASKS.filter(tk => tk.assignedTo === user.id);
+      const doneTasks = taskSource
+        .filter(tk => tk.status !== 'unwatched')
+        .sort((a, b) => (b.dueDate||'').localeCompare(a.dueDate||''));
 
       const historyHtml = doneTasks.length
         ? doneTasks.map(tk => {
@@ -3568,8 +3655,8 @@ const staffTableRows = storeStaff.map(u => {
             const badgeLabel = t(tk.status);
             return `<div class="task-history-item">
               <div>
-                <div class="task-history-title">${tk.title}</div>
-                <div class="task-history-due">期日: ${tk.dueDate}</div>
+                <div class="task-history-title">${tk.videoTitle||tk.title||'タスク'}</div>
+                <div class="task-history-due">期日: ${tk.dueDate||'—'}</div>
               </div>
               <span class="status-badge ${badgeClass}">${badgeLabel}</span>
             </div>`;
@@ -5437,6 +5524,84 @@ const staffTableRows = storeStaff.map(u => {
       alert("ログインに失敗しました: " + error.message);
     }
   });
+
+  // ── タスク送信（店長→スタッフ） ──────────────────────
+  window.sendTaskToFirestore = async function (staffUids, videoId, videoTitle, dueDate) {
+    const cu = typeof currentUser !== 'undefined' ? currentUser : null;
+    const batch = [];
+    for (const uid of staffUids) {
+      batch.push(
+        addDoc(collection(db, "taskAssignments"), {
+          videoId,
+          videoTitle,
+          assignedTo:   uid,
+          assignedBy:   auth.currentUser.uid,
+          assignerName: cu?.name || "未設定",
+          storeId:      cu?.storeId   || "store_001",
+          companyId:    cu?.companyId || "company_001",
+          status:       "unwatched",
+          priority:     true,
+          dueDate,
+          createdAt:    serverTimestamp()
+        })
+      );
+    }
+    await Promise.all(batch);
+    if (typeof showToast === 'function') showToast(`${staffUids.length}名にタスクを送信しました`);
+  };
+
+  // ── スタッフのマイタスク取得 ────────────────────────
+  window.loadMyTasks = async function () {
+    if (!auth.currentUser) return [];
+    try {
+      const q = query(
+        collection(db, "taskAssignments"),
+        where("assignedTo", "==", auth.currentUser.uid),
+        where("status", "in", ["unwatched", "watched"]),
+        orderBy("createdAt", "desc")
+      );
+      const snap = await getDocs(q);
+      const tasks = [];
+      snap.forEach(d => tasks.push({ id: d.id, ...d.data() }));
+      return tasks;
+    } catch (e) {
+      console.warn("マイタスク取得エラー:", e);
+      return [];
+    }
+  };
+
+  // ── 店長の送信済みタスク取得 ───────────────────────
+  window.loadStoreTasks = async function () {
+    const cu = typeof currentUser !== 'undefined' ? currentUser : null;
+    try {
+      const q = query(
+        collection(db, "taskAssignments"),
+        where("storeId",   "==", cu?.storeId   || "store_001"),
+        where("companyId", "==", cu?.companyId || "company_001"),
+        orderBy("createdAt", "desc")
+      );
+      const snap = await getDocs(q);
+      const tasks = [];
+      snap.forEach(d => tasks.push({ id: d.id, ...d.data() }));
+      return tasks;
+    } catch (e) {
+      console.warn("送信済みタスク取得エラー:", e);
+      return [];
+    }
+  };
+
+  // ── タスクステータス更新 ─────────────────────────
+  window.updateTaskFirestore = async function (taskId, newStatus) {
+    try {
+      const updateData = { status: newStatus };
+      if (newStatus === 'watched')   updateData.watchedAt   = serverTimestamp();
+      if (newStatus === 'confirmed') updateData.confirmedAt = serverTimestamp();
+      await updateDoc(doc(db, "taskAssignments", taskId), updateData);
+    } catch (e) {
+      console.warn("タスクステータス更新エラー:", e);
+      if (typeof showToast === 'function') showToast('更新に失敗しました');
+    }
+  };
 
   // ── ログアウト ─────────────────────────────────────
   window.logout = async function () {
