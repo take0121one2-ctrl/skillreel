@@ -1500,13 +1500,34 @@
           <input type="password" placeholder="パスワード" autocomplete="current-password">
         </div>
         <button type="submit" class="btn-login">ログイン</button>
-        <button type="button" id="googleLoginBtn" class="btn-login" style="background:#fff;color:#333;border:1px solid #ddd;margin-top:10px;">
-<i class="fab fa-google"></i> Googleでログイン
-</button>
       </form>
-      
-  　</div>
+
+      <button id="googleLoginBtn" type="button" class="btn-login" style="background:#fff;color:#374151;border:1px solid var(--border);margin-top:12px;display:flex;align-items:center;justify-content:center;gap:8px;">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" style="width:20px;height:20px;">
+        Googleでログイン
+      </button>
+
+      <div class="divider">── または ──</div>
+
+      <div class="quick-login-label">開発用クイックログイン</div>
+      <div class="quick-login-buttons">
+        <button class="btn-quick btn-quick-staff" onclick="login('staff')">
+          <i class="fa-solid fa-user"></i>
+          <span>スタッフ</span>
+        </button>
+        <button class="btn-quick btn-quick-manager" onclick="login('manager')">
+          <i class="fa-solid fa-star"></i>
+          <span>店長</span>
+        </button>
+        <button class="btn-quick btn-quick-hq" onclick="login('headquarters')">
+          <i class="fa-solid fa-building"></i>
+          <span>本部</span>
+        </button>
+      </div>
+
+    </div>
   </div>
+
   <!-- =============================================
        アプリ画面（骨格）
   ============================================= -->
@@ -1516,7 +1537,7 @@
       <div id="header"></div>
       <div id="main-content"></div>
       <div id="bottom-tab"></div>
-   </div>
+    </div>
   </div>
 
   <script>
@@ -1619,12 +1640,6 @@
         notes:{ ja:"炭酸は注ぐ直前まで冷やす", en:"Keep soda chilled", vi:"Giữ soda lạnh", my:"ဆိုဒါ အေးအောင်ထား", ne:"सोडा चिसो राख्नुस्" }
       }
     ];
-    const STAFF_SKILL_CHECKS = [
-  { id: "yakitori_cut", label: "焼き鳥の串打ち" },
-  { id: "grill_support", label: "焼き台補助" },
-  { id: "drink_make", label: "ドリンク作成" },
-  { id: "prep_basic", label: "基本の仕込み" }
-];
 
     const TASKS = [
       { id:1, title:"ねぎまの仕込み", type:"video", contentId:1, assignedTo:1, status:"unwatched", dueDate:"2025-03-20" },
@@ -1721,43 +1736,41 @@
     /* =============================================
        ログイン
     ============================================= */
-function login(role, firebaseUser = null, firestoreUserData = null) {
-  let baseUser = USERS.find(u => u.role === role);
+    function login(role, firebaseUser = null, firestoreUserData = null) {
+      let baseUser = USERS.find(u => u.role === role);
 
-  if (!baseUser) {
-    baseUser = {
-      role: role,
-      lang: "ja",
-      store: "五反田店",
-      position: "スタッフ",
-      joinedHours: 0,
-      mastery: 0,
-      joinDate: "",
-      lastLogin: ""
-    };
-  }
+      if (!baseUser) {
+        baseUser = {
+          role: role,
+          lang: "ja",
+          store: "五反田店",
+          position: "スタッフ",
+          joinedHours: 0,
+          mastery: 0,
+          joinDate: "",
+          lastLogin: ""
+        };
+      }
 
-  currentUser = {
-    ...baseUser,
-    uid: firebaseUser ? firebaseUser.uid : (baseUser.uid || ""),
-    name: firebaseUser?.displayName || firestoreUserData?.name || baseUser.name || "未設定",
-    email: firebaseUser?.email || firestoreUserData?.email || "",
-    photoURL: firebaseUser?.photoURL || firestoreUserData?.photoURL || "",
-    role: firestoreUserData?.role || role,
-    lang: firestoreUserData?.lang || baseUser.lang || "ja",
-    companyId: firestoreUserData?.companyId || "company_001",
-    storeId: firestoreUserData?.storeId || "store_001",
-    skills: firestoreUserData?.skills || {},
-skillChecks: firestoreUserData?.skillChecks || {}
-  };
+      currentUser = {
+        ...baseUser,
+        uid: firebaseUser ? firebaseUser.uid : (baseUser.uid || ""),
+        name: firebaseUser?.displayName || firestoreUserData?.name || baseUser.name || "未設定",
+        email: firebaseUser?.email || firestoreUserData?.email || "",
+        photoURL: firebaseUser?.photoURL || firestoreUserData?.photoURL || "",
+        role: firestoreUserData?.role || role,
+        lang: firestoreUserData?.lang || baseUser.lang || "ja",
+        companyId: firestoreUserData?.companyId || "company_001",
+        storeId: firestoreUserData?.storeId || "store_001",
+        skills: firestoreUserData?.skills || {},
+        skillChecks: firestoreUserData?.skillChecks || {}
+      };
 
-  currentLang = currentUser.lang || "ja";
-
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app-screen').style.display = 'flex';
-
-  initApp();
-}
+      currentLang = currentUser.lang || "ja";
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app-screen').style.display = 'flex';
+      initApp();
+    }
 
     function initApp() {
       if (currentUser.role === 'staff') {
@@ -2065,17 +2078,10 @@ skillChecks: firestoreUserData?.skillChecks || {}
       const user    = currentUser;
       const skills  = user.skills || {};
       const cats    = Object.keys(skills);
-      const totalSkills = STAFF_SKILL_CHECKS.length;
-
-const completedSkills = STAFF_SKILL_CHECKS.filter(
-  skill => currentUser.skillChecks?.[skill.id]
-).length;
-
-const mastery = totalSkills
-  ? Math.round((completedSkills / totalSkills) * 100)
-  : 0;
+      const mastery = user.mastery || 0;
+      const doneCount = cats.filter(c => skills[c] >= 80).length;
       const unlearned = cats.filter(c => skills[c] === 0);
-      const myBadges = BADGES.filter(b => b.userId === user.uid);
+      const myBadges  = BADGES.filter(b => b.userId === user.id);
 
       const catListHtml = cats.map(cat => {
         const pct   = skills[cat];
@@ -2110,37 +2116,25 @@ const mastery = totalSkills
               </div>`).join('')}
            </div>`
         : '<div class="badge-empty">動画を見てスキルを磨きましょう！</div>';
-const skillChecksHtml = STAFF_SKILL_CHECKS.map(skill => `
-  <label style="display:flex;align-items:center;gap:10px;font-size:14px;font-weight:500;cursor:pointer;padding:12px 0;border-bottom:1px solid #eee;">
-    <input type="checkbox"
-      ${currentUser.skillChecks?.[skill.id] ? 'checked' : ''}
-      onchange="updateSkill('${skill.id}', this.checked)">
-    ${skill.label}
-  </label>
-`).join('');
+
       content.innerHTML = `
         <div class="skills-page">
-         <div class="skill-summary-card">
-  <div class="skill-summary-top">
-    <div>
-      <div class="skill-summary-name">${user.name}</div>
-      <div class="skill-summary-store">${user.store}</div>
-    </div>
-    <div>
-      <div class="skill-mastery"><span id="mastery-num">0</span><span class="skill-mastery-unit">%</span></div>
-    </div>
-  </div>
-  <div class="skill-summary-label">${user.store}の学習進捗</div>
-  <div class="progress-bar-wrap">
-    <div class="progress-bar-fill" style="--target-width:${mastery}%"></div>
-  </div>
-  <div class="progress-bar-label">${completedSkills} / ${totalSkills} 項目習得完了</div>
-</div>
-
-<div style="background:#fff;border:1px solid #ddd;border-radius:12px;padding:16px;margin:16px 0;">
-  <div style="font-size:14px;font-weight:700;margin-bottom:8px;">習得チェック</div>
-  ${skillChecksHtml}
-</div>
+          <div class="skill-summary-card">
+            <div class="skill-summary-top">
+              <div>
+                <div class="skill-summary-name">${user.name}</div>
+                <div class="skill-summary-store">${user.store}</div>
+              </div>
+              <div>
+                <div class="skill-mastery"><span id="mastery-num">0</span><span class="skill-mastery-unit">%</span></div>
+              </div>
+            </div>
+            <div class="skill-summary-label">${user.store}の学習進捗</div>
+            <div class="progress-bar-wrap">
+              <div class="progress-bar-fill" style="--target-width:${mastery}%"></div>
+            </div>
+            <div class="progress-bar-label">${doneCount} / ${cats.length} カテゴリ習得完了</div>
+          </div>
 
           <div>
             <div class="section-title">カテゴリ別スキル</div>
@@ -2308,68 +2302,26 @@ const skillChecksHtml = STAFF_SKILL_CHECKS.map(skill => `
         (u.joinedHours || 0) <= 50
       ).map(u => u.name).join('、');
     }
-async function loadStoreStaffFromFirestore() {
-  const q = query(
-    collection(db, "users"),
-    where("storeId", "==", currentUser.storeId)
-  );
 
-  const snapshot = await getDocs(q);
+    function renderDashboard() {
+      const content    = document.getElementById('main-content');
+      const myStore    = currentUser.store;
+      const storeStaff = USERS.filter(u => u.role === 'staff' && u.store === myStore);
 
-  return snapshot.docs
-    .map(d => ({ uid: d.id, ...d.data() }))
-    .filter(u => u.role === "staff");
-}
-    function calcSkillPercent(userData) {
-  const checks = userData.skillChecks || {};
-  const total = STAFF_SKILL_CHECKS.length;
-
-  const completed = STAFF_SKILL_CHECKS.filter(
-    skill => checks[skill.id]
-  ).length;
-
-  return total ? Math.round((completed / total) * 100) : 0;
-}
-    async function renderDashboard() {
-     const content = document.getElementById('main-content');
-const myStore = currentUser.store;
-
-content.innerHTML = `<div style="padding:24px;color:var(--text-secondary)">スタッフ情報を読み込み中...</div>`;
-
-const storeStaff = await loadStoreStaffFromFirestore();
-
-const avgMastery = storeStaff.length
-  ? Math.round(storeStaff.reduce((sum, u) => sum + calcSkillPercent(u), 0) / storeStaff.length)
-  : 0;
-
-const pendingApprovals = SKILL_MAP.filter(sm => sm.status === 'done').length;
-
-// joinedHours は Firestore にまだ無い可能性があるので、ひとまず 50h 以下判定は外すか簡易化
-const followTargets = storeStaff.filter(u => calcSkillPercent(u) < 100);
-const followNames = followTargets.map(u => u.name || "未設定").join('、');
+      const avgMastery = storeStaff.length
+        ? Math.round(storeStaff.reduce((s, u) => s + (u.mastery || 0), 0) / storeStaff.length) : 0;
+      const pendingApprovals = SKILL_MAP.filter(sm => sm.status === 'done').length;
+      const followTargets    = storeStaff.filter(u => (u.joinedHours || 0) <= 50);
+      const followNames      = followTargets.map(u => u.name).join('、');
 
       const followHtml = followTargets.length
-  ? followTargets.map(u => `<div class="follow-card">
-      <div><div class="follow-name">${u.name || "未設定"}</div>
-      <div class="follow-hours">習得率 ${calcSkillPercent(u)}%</div></div>
-      <button class="btn-send-task" onclick="managerNavigateTo('taskMgmt')">タスクを送る</button>
-    </div>`).join('')
-  : '<div style="font-size:13px;color:var(--text-muted)"><i class="fa-solid fa-check-circle" style="color:var(--success);margin-right:4px"></i>フォロー対象なし</div>';
-const staffTableRows = storeStaff.map(u => {
-  const pct = calcSkillPercent(u);
+        ? followTargets.map(u => `<div class="follow-card">
+            <div><div class="follow-name">${u.name}</div>
+            <div class="follow-hours">稼働 ${u.joinedHours||0}h / 50h</div></div>
+            <button class="btn-send-task" onclick="managerNavigateTo('taskMgmt')">タスクを送る</button>
+          </div>`).join('')
+        : '<div style="font-size:13px;color:var(--text-muted)"><i class="fa-solid fa-check-circle" style="color:var(--success);margin-right:4px"></i>フォロー対象なし</div>';
 
-  return `
-    <tr>
-      <td style="padding:10px 12px;border-bottom:1px solid var(--border)">${u.name || "未設定"}</td>
-      <td style="padding:10px 12px;border-bottom:1px solid var(--border)">${pct}%</td>
-      <td style="padding:10px 12px;border-bottom:1px solid var(--border)">
-        ${STAFF_SKILL_CHECKS.map(skill => (
-          u.skillChecks?.[skill.id] ? "○" : "×"
-        )).join(" / ")}
-      </td>
-    </tr>
-  `;
-}).join('');
       // 動画投稿申請一覧（自分の店舗分）
       const myPending = PENDING_VIDEOS.filter(p => p.store === myStore);
       const pendingListHtml = myPending.length ? myPending.map(p => {
@@ -2461,7 +2413,7 @@ const staffTableRows = storeStaff.map(u => {
           ${followHtml}
         </div>
 
-                <div class="page-card" style="margin-top:20px">
+        <div class="page-card" style="margin-top:20px">
           <div class="page-card-title"><i class="fa-solid fa-upload" style="color:var(--primary);margin-right:6px"></i>動画を投稿する</div>
           <button class="btn-primary-sm" onclick="dashVideoFormOpen=!dashVideoFormOpen;renderDashboard()">
             <i class="fa-solid fa-${dashVideoFormOpen?'minus':'plus'}"></i> ${dashVideoFormOpen?'閉じる':'動画を投稿する'}
@@ -2470,24 +2422,6 @@ const staffTableRows = storeStaff.map(u => {
           <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
             <div style="font-size:12px;font-weight:700;color:var(--text-secondary);margin-bottom:8px">投稿申請一覧</div>
             ${pendingListHtml}
-          </div>
-        </div>
-
-        <div class="page-card" style="margin-top:20px">
-          <div class="page-card-title"><i class="fa-solid fa-table-list" style="color:var(--primary);margin-right:6px"></i>スタッフ習得状況</div>
-          <div style="overflow-x:auto">
-            <table style="width:100%;border-collapse:collapse;font-size:13px">
-              <thead>
-                <tr>
-                  <th style="text-align:left;padding:10px 12px;border-bottom:2px solid var(--border)">スタッフ</th>
-                  <th style="text-align:left;padding:10px 12px;border-bottom:2px solid var(--border)">習得率</th>
-                  <th style="text-align:left;padding:10px 12px;border-bottom:2px solid var(--border)">チェック状況</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${staffTableRows}
-              </tbody>
-            </table>
           </div>
         </div>`;
     }
@@ -4884,102 +4818,96 @@ const staffTableRows = storeStaff.map(u => {
       document.getElementById('login-screen').style.display = 'flex';
     }
   </script>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyAgd3NUGdTIosjPQ5Qu2bljEfcTK2T0g8E",
-  authDomain: "skillreel-68091.firebaseapp.com",
-  projectId: "skillreel-68091",
-  storageBucket: "skillreel-68091.firebasestorage.app",
-  messagingSenderId: "659149705828",
-  appId: "1:659149705828:web:ffcaaf1b62e3c4f0b14571"
-};
+  const firebaseConfig = {
+    apiKey: "AIzaSyAgd3NUGdTIosjPQ5Qu2bljEfcTK2T0g8E",
+    authDomain: "skillreel-68091.firebaseapp.com",
+    projectId: "skillreel-68091",
+    storageBucket: "skillreel-68091.firebasestorage.app",
+    messagingSenderId: "659149705828",
+    appId: "1:659149705828:web:ffcaaf1b62e3c4f0b14571"
+  };
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const provider = new GoogleAuthProvider();
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const provider = new GoogleAuthProvider();
 
-window.updateSkill = async function (skillId, value) {
-  const firebaseUser = auth.currentUser;
-
-  if (!firebaseUser) {
-    alert("ログインしてください");
-    return;
-  }
-
-  try {
-    await setDoc(doc(db, "users", firebaseUser.uid), {
-      skillChecks: {
-        [skillId]: value
-      },
-      lastUpdatedAt: serverTimestamp()
-    }, { merge: true });
-
-    if (!currentUser) currentUser = {};
-    if (!currentUser.skillChecks) currentUser.skillChecks = {};
-
-    currentUser.skillChecks[skillId] = value;
-    renderSkills();
-
-    console.log("スキル保存成功:", skillId, value);
-  } catch (error) {
-    console.error("スキル保存エラー:", error);
-    alert("保存に失敗しました: " + error.message);
-  }
-};
-  onAuthStateChanged(auth, async (firebaseUser) => {
-  if (!firebaseUser) return;
-
-  try {
-    const userRef = doc(db, "users", firebaseUser.uid);
-    const userSnap = await getDoc(userRef);
-
-     if (userSnap.exists()) {
-   const userData = userSnap.data();
-   login(userData.role || "staff", firebaseUser, userData);
- } else {
-login("staff", firebaseUser, null);
+  window.updateSkill = async function (skillId, value) {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) {
+      alert("ログインしてください");
+      return;
     }
-  } catch (error) {
-    console.error("ユーザー復元エラー:", error);
-    login("staff", firebaseUser, null);
-  }
-});
+    try {
+      await setDoc(doc(db, "users", firebaseUser.uid), {
+        skillChecks: { [skillId]: value },
+        lastUpdatedAt: serverTimestamp()
+      }, { merge: true });
+      if (!currentUser) currentUser = {};
+      if (!currentUser.skillChecks) currentUser.skillChecks = {};
+      currentUser.skillChecks[skillId] = value;
+      renderSkills();
+      console.log("スキル保存成功:", skillId, value);
+    } catch (error) {
+      console.error("スキル保存エラー:", error);
+      alert("保存に失敗しました: " + error.message);
+    }
+  };
 
-document.getElementById("googleLoginBtn").addEventListener("click", async () => {
-  try {
-    const result = await signInWithPopup(auth, provider);
-    const firebaseUser = result.user;
+  onAuthStateChanged(auth, async (firebaseUser) => {
+    if (!firebaseUser) return;
+    try {
+      const userRef = doc(db, "users", firebaseUser.uid);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        const userData = userSnap.data();
+        login(userData.role || "staff", firebaseUser, userData);
+      } else {
+        login("staff", firebaseUser, null);
+      }
+    } catch (error) {
+      console.error("ユーザー復元エラー:", error);
+      login("staff", firebaseUser, null);
+    }
+  });
 
-    await setDoc(doc(db, "users", firebaseUser.uid), {
-      uid: firebaseUser.uid,
-      name: firebaseUser.displayName || "未設定",
-      email: firebaseUser.email || "",
-      photoURL: firebaseUser.photoURL || "",
-      role: "staff",
-      companyId: "company_001",
-      storeId: "store_001",
-      createdAt: serverTimestamp(),
-      lastLoginAt: serverTimestamp()
-    }, { merge: true });
-  } catch (error) {
-    console.error("Googleログイン/Firestore保存エラー:", error);
-    alert("保存に失敗しました: " + error.message);
-  }
-});
+  document.getElementById("googleLoginBtn").addEventListener("click", async () => {
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const firebaseUser = result.user;
+      await setDoc(doc(db, "users", firebaseUser.uid), {
+        uid: firebaseUser.uid,
+        name: firebaseUser.displayName || "未設定",
+        email: firebaseUser.email || "",
+        photoURL: firebaseUser.photoURL || "",
+        role: "staff",
+        companyId: "company_001",
+        storeId: "store_001",
+        createdAt: serverTimestamp(),
+        lastLoginAt: serverTimestamp()
+      }, { merge: true });
+    } catch (error) {
+      console.error("Googleログイン/Firestore保存エラー:", error);
+      alert("保存に失敗しました: " + error.message);
+    }
+  });
+
   window.logout = async function () {
-  try {
-    await signOut(auth);
-    location.reload();
-  } catch (error) {
-    console.error("ログアウトエラー:", error);
-    alert("ログアウトに失敗しました");
-  }
-};
+    try {
+      await signOut(auth);
+      location.reload();
+    } catch (error) {
+      console.error("ログアウトエラー:", error);
+      alert("ログアウトに失敗しました");
+    }
+  };
 </script>
+
 </body>
 </html>
