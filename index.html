@@ -2038,7 +2038,8 @@ function setupManagerLayout() {
             ['dashboard','fa-th-large','ダッシュボード'],
             ['upload','fa-upload','動画投稿'],
             ['tasks','fa-tasks','タスク管理'],
-            ['staff','fa-users','スタッフ管理'],
+            ['staff','fa-users','スタッフ一覧'],
+            ['request','fa-comment-alt','改善リクエスト'],
             ['invite','fa-user-plus','招待'],
           ].map(([p,icon,label]) => `
             <div onclick="navigateManager('${p}')" id="nav-${p}" style="
@@ -2064,9 +2065,16 @@ function setupManagerLayout() {
         <div style="height:56px;background:white;border-bottom:1px solid var(--border);
           display:flex;align-items:center;padding:0 24px;justify-content:space-between;">
           <span id="page-title" style="font-size:16px;font-weight:700;"></span>
-          <span style="font-size:13px;color:var(--text-secondary);">
-            ${currentUser?.storeName || ''}の管理画面
-          </span>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="font-size:13px;color:var(--text-secondary);">
+              ${currentUser?.storeName || ''}の管理画面
+            </span>
+            <button onclick="openNotificationDrawer()" style="
+              background:none;border:none;cursor:pointer;font-size:20px;
+              color:var(--text-secondary);">
+              <i class="fa-solid fa-bell"></i>
+            </button>
+          </div>
         </div>
         <div id="main-content" style="flex:1;overflow-y:auto;padding:24px;background:var(--bg);"></div>
       </div>
@@ -2089,7 +2097,8 @@ function navigateManager(page) {
   }
   const titles = {
     dashboard:'ダッシュボード', upload:'動画投稿',
-    tasks:'タスク管理', staff:'スタッフ管理', invite:'招待'
+    tasks:'タスク管理', staff:'スタッフ一覧',
+    request:'改善リクエスト', invite:'招待'
   };
   const titleEl = document.getElementById('page-title');
   if (titleEl) titleEl.textContent = titles[page] || '';
@@ -2098,6 +2107,7 @@ function navigateManager(page) {
   else if (page === 'upload') renderManagerUpload(content);
   else if (page === 'tasks') renderManagerTasks(content);
   else if (page === 'staff') renderManagerStaff(content);
+  else if (page === 'request') renderManagerRequest(content);
   else if (page === 'invite') renderManagerInvite(content);
 }
 
@@ -2200,37 +2210,74 @@ function renderManagerTasks(content) {
   content.innerHTML = `
     <div style="background:white;border-radius:var(--radius-md);padding:20px;
       box-shadow:var(--shadow-sm);margin-bottom:16px;">
-      <button onclick="toggleTaskForm()" style="
+      <button onclick="toggleTaskForm()" id="toggle-task-btn" style="
         width:100%;padding:12px;background:var(--primary);color:white;
         border:none;border-radius:var(--radius-md);font-family:var(--font);
         font-size:14px;font-weight:700;cursor:pointer;">
         <i class="fa-solid fa-plus"></i> タスクを送る
       </button>
-      <div id="task-form" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:16px;">
+
+      <div id="task-form" style="display:none;margin-top:16px;
+        border-top:1px solid var(--border);padding-top:16px;">
+
+        <div style="margin-bottom:16px;">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px;">
+            <i class="fa-solid fa-folder" style="color:var(--accent);margin-right:4px;"></i>
+            フォルダから選ぶ
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            ${[
+              ['新人教育','fa-graduation-cap','var(--info)'],
+              ['調理・仕込み','fa-utensils','var(--success)'],
+              ['ホール・接客','fa-handshake','var(--primary)'],
+              ['ドリンク','fa-glass-martini','var(--accent)'],
+              ['すべて','fa-video','var(--text-secondary)']
+            ].map(([label, icon, color]) => `
+              <button onclick="loadVideosByFolder('${label}')" style="
+                padding:8px 14px;border-radius:999px;
+                border:1px solid var(--border);background:white;
+                font-family:var(--font);font-size:12px;cursor:pointer;
+                display:flex;align-items:center;gap:6px;">
+                <i class="fa-solid ${icon}" style="color:${color};"></i>
+                ${label}
+              </button>`).join('')}
+          </div>
+        </div>
+
         <div style="margin-bottom:12px;">
           <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">
             対象スタッフ <span style="color:var(--danger);">*</span>
           </label>
+          <div style="margin-bottom:6px;">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;">
+              <input type="checkbox" id="select-all-staff" onchange="toggleAllStaff(this)">
+              全員選択
+            </label>
+          </div>
           <div id="staff-checklist" style="border:1px solid var(--border);
             border-radius:var(--radius-sm);padding:8px;max-height:150px;overflow-y:auto;">
             <div style="font-size:12px;color:var(--text-muted);">読み込み中...</div>
           </div>
         </div>
+
         <div style="margin-bottom:12px;">
           <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">
             動画を選択 <span style="color:var(--danger);">*</span>
           </label>
           <div id="video-checklist" style="border:1px solid var(--border);
-            border-radius:var(--radius-sm);padding:8px;max-height:150px;overflow-y:auto;">
-            <div style="font-size:12px;color:var(--text-muted);">読み込み中...</div>
+            border-radius:var(--radius-sm);padding:8px;max-height:180px;overflow-y:auto;">
+            <div style="font-size:12px;color:var(--text-muted);">上のフォルダから選ぶかすべてを選択</div>
           </div>
         </div>
+
         <div style="margin-bottom:12px;">
           <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">期日</label>
           <input type="date" id="task-due" style="
             width:100%;padding:8px 12px;border:1.5px solid var(--border);
-            border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;outline:none;">
+            border-radius:var(--radius-sm);font-family:var(--font);
+            font-size:14px;outline:none;">
         </div>
+
         <div style="display:flex;gap:8px;">
           <button onclick="sendTasks()" style="
             flex:1;padding:10px;background:var(--primary);color:white;
@@ -2244,21 +2291,75 @@ function renderManagerTasks(content) {
       </div>
     </div>
 
-    <div style="display:flex;gap:8px;margin-bottom:16px;">
+    <div style="display:flex;gap:8px;margin-bottom:16px;overflow-x:auto;">
       ${['unwatched','watched','confirmed'].map((s,i) => {
         const labels = ['未視聴','視聴済み','確認済み'];
         return `<button onclick="loadManagerTasks('${s}')" id="mgr-task-tab-${s}" style="
           padding:6px 14px;border-radius:999px;border:1px solid var(--border);
           background:${i===0?'var(--primary)':'white'};
           color:${i===0?'white':'var(--text-secondary)'};
-          font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;">
-          ${labels[i]}</button>`;
+          font-family:var(--font);font-size:12px;font-weight:600;
+          cursor:pointer;white-space:nowrap;">${labels[i]}</button>`;
       }).join('')}
     </div>
     <div id="manager-task-list"></div>`;
 
   loadManagerTaskForm();
   loadManagerTasks('unwatched');
+}
+
+function toggleAllStaff(checkbox) {
+  document.querySelectorAll('.staff-check').forEach(c => {
+    c.checked = checkbox.checked;
+  });
+}
+
+async function loadVideosByFolder(folder) {
+  const videoEl = document.getElementById('video-checklist');
+  if (!videoEl) return;
+  videoEl.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">読み込み中...</div>';
+
+  let videos = [];
+  try {
+    if (window._getDocs && window._query) {
+      let constraints = [
+        window._where('companyId', '==', currentUser?.companyId || 'company_001'),
+        window._where('published', '==', true)
+      ];
+      if (folder === '新人教育') {
+        constraints.push(window._where('isOnboarding', '==', true));
+      } else if (folder !== 'すべて') {
+        constraints.push(window._where('genre', '==',
+          folder === '調理・仕込み' ? '仕込み' :
+          folder === 'ホール・接客' ? 'ホール' :
+          folder === 'ドリンク' ? 'ドリンク' : folder
+        ));
+      }
+      const q = window._query(
+        window._collection(window._db, 'videos'),
+        ...constraints
+      );
+      const snap = await window._getDocs(q);
+      snap.forEach(d => videos.push({ id: d.id, ...d.data() }));
+    }
+  } catch(e) {}
+
+  if (videos.length === 0) {
+    videoEl.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">動画がありません</div>';
+    return;
+  }
+
+  videoEl.innerHTML = videos.map(v => `
+    <label style="display:flex;align-items:center;gap:8px;
+      padding:8px;cursor:pointer;border-bottom:1px solid var(--border-light,#F3F4F6);">
+      <input type="checkbox" value="${v.id}" data-title="${v.title}" class="video-check">
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:600;">${v.title}</div>
+        <div style="font-size:11px;color:var(--text-secondary);">${v.genre||''}</div>
+      </div>
+      ${v.isOnboarding ? `<span style="background:var(--info-light);color:var(--info);
+        padding:2px 6px;border-radius:999px;font-size:10px;font-weight:600;">新人</span>` : ''}
+    </label>`).join('');
 }
 
 async function toggleTaskForm() {
@@ -2476,6 +2577,172 @@ async function renderManagerStaff(content) {
           </tr>`).join('')}
       </tbody>
     </table>`;
+}
+
+function renderManagerRequest(content) {
+  content.innerHTML = `
+    <div style="background:white;border-radius:var(--radius-md);padding:24px;
+      box-shadow:var(--shadow-sm);margin-bottom:16px;">
+      <div style="font-size:15px;font-weight:700;margin-bottom:20px;">
+        改善リクエストを送る
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div>
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">
+            コンテンツ種別 <span style="color:var(--danger);">*</span>
+          </label>
+          <div style="display:flex;gap:8px;">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+              <input type="radio" name="req-type" value="video" checked> 動画
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+              <input type="radio" name="req-type" value="recipe"> レシピ
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+              <input type="radio" name="req-type" value="other"> その他
+            </label>
+          </div>
+        </div>
+        <div>
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">
+            対応内容詳細 <span style="color:var(--danger);">*</span>
+          </label>
+          <textarea id="req-detail" rows="4"
+            placeholder="改善してほしい内容を具体的に入力してください"
+            style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
+            border-radius:var(--radius-sm);font-family:var(--font);font-size:13px;
+            outline:none;resize:vertical;"></textarea>
+        </div>
+        <div>
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">
+            対応期日
+          </label>
+          <input type="date" id="req-due" style="
+            width:100%;padding:8px 12px;border:1.5px solid var(--border);
+            border-radius:var(--radius-sm);font-family:var(--font);
+            font-size:14px;outline:none;">
+        </div>
+        <div>
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">
+            備考
+          </label>
+          <textarea id="req-note" rows="2"
+            placeholder="補足があれば入力してください"
+            style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
+            border-radius:var(--radius-sm);font-family:var(--font);font-size:13px;
+            outline:none;resize:vertical;"></textarea>
+        </div>
+        <button onclick="sendRequest()" style="
+          padding:12px;background:var(--primary);color:white;border:none;
+          border-radius:var(--radius-md);font-family:var(--font);font-size:14px;
+          font-weight:700;cursor:pointer;">
+          <i class="fa-solid fa-paper-plane"></i> 送信する
+        </button>
+      </div>
+    </div>
+
+    <div style="background:white;border-radius:var(--radius-md);padding:20px;
+      box-shadow:var(--shadow-sm);">
+      <div style="font-size:14px;font-weight:700;margin-bottom:12px;">送信済み一覧</div>
+      <div id="request-sent-list">
+        <div style="font-size:13px;color:var(--text-muted);text-align:center;padding:20px;">
+          送信したリクエストはありません
+        </div>
+      </div>
+    </div>`;
+
+  loadSentRequests();
+}
+
+async function sendRequest() {
+  const type = document.querySelector('input[name="req-type"]:checked')?.value;
+  const detail = document.getElementById('req-detail')?.value.trim();
+  const due = document.getElementById('req-due')?.value;
+  const note = document.getElementById('req-note')?.value.trim();
+
+  if (!detail) { showToast('対応内容を入力してください', 'error'); return; }
+
+  try {
+    if (window._addDoc && window._collection) {
+      await window._addDoc(
+        window._collection(window._db, 'requests'), {
+          type,
+          detail,
+          dueDate: due || '',
+          note: note || '',
+          status: '未対応',
+          fromStore: currentUser?.storeName || '',
+          fromManager: currentUser?.name || '',
+          companyId: currentUser?.companyId || 'company_001',
+          createdAt: window._serverTimestamp()
+        }
+      );
+      await window._addDoc(
+        window._collection(window._db, 'notifications'), {
+          type: 'request',
+          message: `${currentUser?.storeName||''}から改善リクエスト：「${detail.slice(0,30)}...」`,
+          companyId: currentUser?.companyId || 'company_001',
+          targetRole: 'headquarters',
+          read: false,
+          createdAt: window._serverTimestamp()
+        }
+      );
+    }
+    showToast('リクエストを送信しました ✅');
+    document.getElementById('req-detail').value = '';
+    document.getElementById('req-note').value = '';
+    loadSentRequests();
+  } catch(e) {
+    showToast('送信に失敗しました', 'error');
+  }
+}
+
+async function loadSentRequests() {
+  const listEl = document.getElementById('request-sent-list');
+  if (!listEl) return;
+
+  let requests = [];
+  try {
+    if (window._getDocs && window._query) {
+      const q = window._query(
+        window._collection(window._db, 'requests'),
+        window._where('companyId', '==', currentUser?.companyId || 'company_001'),
+        window._where('fromStore', '==', currentUser?.storeName || '')
+      );
+      const snap = await window._getDocs(q);
+      snap.forEach(d => requests.push({ id: d.id, ...d.data() }));
+    }
+  } catch(e) {}
+
+  if (requests.length === 0) {
+    listEl.innerHTML = `
+      <div style="font-size:13px;color:var(--text-muted);text-align:center;padding:20px;">
+        送信したリクエストはありません
+      </div>`;
+    return;
+  }
+
+  const statusColors = {
+    '未対応': 'var(--warning)',
+    '対応中': 'var(--info)',
+    '対応済み': 'var(--success)',
+    '休止中': 'var(--text-muted)'
+  };
+
+  listEl.innerHTML = requests.map(r => `
+    <div style="border:1px solid var(--border);border-radius:var(--radius-sm);
+      padding:12px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+        <span style="font-size:12px;font-weight:600;color:var(--text-secondary);">
+          ${r.type||''} · ${r.dueDate||'期日未定'}
+        </span>
+        <span style="background:${statusColors[r.status]||'var(--text-muted)'};
+          color:white;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">
+          ${r.status||'未対応'}
+        </span>
+      </div>
+      <div style="font-size:13px;">${r.detail||''}</div>
+    </div>`).join('');
 }
 
 function renderManagerInvite(content) {
@@ -3583,45 +3850,53 @@ async function submitVideo() {
   const channel = document.getElementById('up-channel')?.value;
   const genre = document.getElementById('up-genre')?.value;
   const desc = document.getElementById('up-desc')?.value.trim();
-  const isOnboarding = document.getElementById('up-onboarding')?.checked;
-  const videoFile = document.getElementById('up-video')?.files[0];
-  const thumbFile = document.getElementById('up-thumb')?.files[0];
+  const isOnboarding = document.getElementById('up-onboarding')?.checked || false;
+  const videoInput = document.getElementById('up-video');
+  const thumbInput = document.getElementById('up-thumb');
+  const videoFile = videoInput?.files?.[0];
+  const thumbFile = thumbInput?.files?.[0];
 
   if (!title) { showToast('タイトルを入力してください', 'error'); return; }
   if (!videoFile) { showToast('動画ファイルを選択してください', 'error'); return; }
 
-  const btn = document.querySelector('button[onclick="submitVideo()"]');
-  if (btn) { btn.textContent = 'アップロード中...'; btn.disabled = true; }
+  const submitBtn = document.querySelector('[onclick="submitVideo()"]');
+  if (submitBtn) { submitBtn.textContent = 'アップロード中...'; submitBtn.disabled = true; }
 
   try {
     let videoURL = '';
     let thumbnailURL = '';
     const companyId = currentUser?.companyId || 'company_001';
 
-    if (window._uploadBytes && window._ref && window._getDownloadURL) {
+    if (window._storage && window._ref && window._uploadBytes && window._getDownloadURL) {
+      showToast('動画をアップロード中...');
       const vRef = window._ref(
         window._storage,
         `videos/${companyId}/${Date.now()}_${videoFile.name}`
       );
-      await window._uploadBytes(vRef, videoFile);
-      videoURL = await window._getDownloadURL(vRef);
+      const vSnap = await window._uploadBytes(vRef, videoFile);
+      videoURL = await window._getDownloadURL(vSnap.ref);
 
       if (thumbFile) {
+        showToast('サムネイルをアップロード中...');
         const tRef = window._ref(
           window._storage,
           `thumbnails/${companyId}/${Date.now()}_${thumbFile.name}`
         );
-        await window._uploadBytes(tRef, thumbFile);
-        thumbnailURL = await window._getDownloadURL(tRef);
+        const tSnap = await window._uploadBytes(tRef, thumbFile);
+        thumbnailURL = await window._getDownloadURL(tSnap.ref);
       }
+    } else {
+      showToast('Firebase Storage未接続です', 'error');
+      if (submitBtn) { submitBtn.textContent = '投稿申請する'; submitBtn.disabled = false; }
+      return;
     }
 
     const isHQ = currentUser?.role === 'headquarters';
     const videoData = {
       title,
-      channel,
-      genre,
-      description: desc,
+      channel: channel || 'common',
+      genre: genre || 'その他',
+      description: desc || '',
       isOnboarding,
       type: isHQ ? 'official' : 'field',
       videoURL,
@@ -3636,8 +3911,7 @@ async function submitVideo() {
       isOfficial: isHQ,
       published: isHQ,
       status: isHQ ? 'published' : 'pending',
-      createdAt: window._serverTimestamp
-        ? window._serverTimestamp() : new Date().toISOString()
+      createdAt: window._serverTimestamp()
     };
 
     if (window._addDoc && window._collection) {
@@ -3646,13 +3920,24 @@ async function submitVideo() {
         videoData
       );
 
-      if (!isHQ && window._addDoc) {
+      if (!isHQ) {
         await window._addDoc(
           window._collection(window._db, 'notifications'), {
             type: 'video_request',
-            message: `${currentUser?.storeName||''}から動画申請：「${title}」`,
+            message: `${currentUser?.storeName||''}の${currentUser?.name||''}から動画申請：「${title}」`,
             companyId,
             targetRole: 'headquarters',
+            read: false,
+            createdAt: window._serverTimestamp()
+          }
+        );
+      } else {
+        await window._addDoc(
+          window._collection(window._db, 'notifications'), {
+            type: 'new_video',
+            message: `新しい動画が公開されました：「${title}」`,
+            companyId,
+            targetRole: 'all',
             read: false,
             createdAt: window._serverTimestamp()
           }
@@ -3661,17 +3946,16 @@ async function submitVideo() {
     }
 
     showToast(isHQ ? '動画を公開しました ✅' : '申請しました。本部の確認をお待ちください ✅');
-
-    document.getElementById('up-title').value = '';
-    document.getElementById('up-desc').value = '';
-    document.getElementById('up-video').value = '';
-    if (document.getElementById('up-thumb'))
-      document.getElementById('up-thumb').value = '';
+    if (document.getElementById('up-title')) document.getElementById('up-title').value = '';
+    if (document.getElementById('up-desc')) document.getElementById('up-desc').value = '';
+    if (videoInput) videoInput.value = '';
+    if (thumbInput) thumbInput.value = '';
 
   } catch(e) {
+    console.error('投稿エラー:', e);
     showToast('投稿に失敗しました: ' + e.message, 'error');
   } finally {
-    if (btn) { btn.textContent = '投稿申請する'; btn.disabled = false; }
+    if (submitBtn) { submitBtn.textContent = '投稿申請する'; submitBtn.disabled = false; }
   }
 }
 async function registerDummyData(event) {
