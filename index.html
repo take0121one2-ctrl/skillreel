@@ -1604,7 +1604,7 @@ function setupStaffLayout() {
       padding:0 16px;flex-shrink:0;">
       <span style="color:white;font-size:18px;font-weight:700;">SkillReel</span>
       <div style="display:flex;gap:12px;">
-        <button onclick="toggleNotifications()" style="background:none;border:none;color:white;font-size:18px;cursor:pointer;">
+        <button onclick="openNotificationDrawer()" style="background:none;border:none;color:white;font-size:18px;cursor:pointer;">
           <i class="fa-solid fa-bell"></i>
         </button>
         <select onchange="changeLang(this.value)" style="
@@ -1704,30 +1704,112 @@ function renderFeed(content) {
   loadFeedVideos();
 }
 
-function renderSkills(content) {
+async function renderSkills(content) {
   content.style.cssText = 'height:100%;overflow-y:auto;padding:16px;background:var(--bg);';
+
   content.innerHTML = `
-    <div style="background:white;border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;box-shadow:var(--shadow-sm);">
-      <div style="font-size:16px;font-weight:700;margin-bottom:4px;">${currentUser?.name || ''}</div>
-      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">${currentUser?.storeName || ''}</div>
-      <div style="font-size:32px;font-weight:700;color:var(--primary);margin-bottom:8px;">0%</div>
-      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">全体視聴率</div>
-      <div style="background:var(--border);border-radius:999px;height:8px;">
-        <div style="background:var(--primary);height:8px;border-radius:999px;width:0%;transition:width 0.8s;"></div>
+    <div style="background:white;border-radius:var(--radius-lg);padding:20px;
+      margin-bottom:16px;box-shadow:var(--shadow-sm);">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+        <div style="width:48px;height:48px;border-radius:50%;background:var(--primary);
+          display:flex;align-items:center;justify-content:center;
+          color:white;font-size:20px;font-weight:700;">
+          ${(currentUser?.name||'U')[0]}
+        </div>
+        <div>
+          <div style="font-size:16px;font-weight:700;">${currentUser?.name||''}</div>
+          <div style="font-size:12px;color:var(--text-secondary);">${currentUser?.storeName||''}</div>
+        </div>
       </div>
     </div>
-    <div style="font-size:15px;font-weight:700;margin-bottom:12px;">カテゴリ別視聴率</div>
-    ${GENRES.map(g => `
-      <div style="background:white;border-radius:var(--radius-md);padding:16px;
-        margin-bottom:8px;box-shadow:var(--shadow-sm);">
-        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-          <span style="font-size:13px;font-weight:600;">${g}</span>
-          <span style="font-size:13px;color:var(--text-secondary);">0%</span>
-        </div>
-        <div style="background:var(--border);border-radius:999px;height:6px;">
-          <div style="background:var(--danger);height:6px;border-radius:999px;width:0%;"></div>
-        </div>
-      </div>`).join('')}`;
+
+    <div style="background:white;border-radius:var(--radius-lg);padding:20px;
+      margin-bottom:16px;box-shadow:var(--shadow-sm);">
+      <div style="font-size:15px;font-weight:700;margin-bottom:16px;">
+        <i class="fa-solid fa-trophy" style="color:var(--accent);margin-right:6px;"></i>
+        スキル達成状況
+      </div>
+      <div id="skill-stats" style="text-align:center;color:var(--text-muted);font-size:13px;">
+        <i class="fa-solid fa-spinner fa-spin"></i> 読み込み中...
+      </div>
+    </div>`;
+
+  await loadSkillStats();
+}
+
+async function loadSkillStats() {
+  const statsEl = document.getElementById('skill-stats');
+  if (!statsEl) return;
+
+  let watched = 0, confirmed = 0, total = 0;
+
+  try {
+    if (window._getDocs && window._query) {
+      const q = window._query(
+        window._collection(window._db, 'taskAssignments'),
+        window._where('assignedTo', '==', currentUser?.uid || '')
+      );
+      const snap = await window._getDocs(q);
+      snap.forEach(d => {
+        const data = d.data();
+        total++;
+        if (data.status === 'watched') watched++;
+        if (data.status === 'confirmed') confirmed++;
+      });
+    }
+  } catch(e) {}
+
+  const skillLevel = confirmed;
+  const progress = total > 0 ? Math.round((confirmed / total) * 100) : 0;
+
+  statsEl.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;">
+      <div style="background:var(--primary-light);border-radius:var(--radius-md);padding:16px;text-align:center;">
+        <div style="font-size:28px;font-weight:700;color:var(--primary);">${total}</div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">総タスク数</div>
+      </div>
+      <div style="background:var(--info-light);border-radius:var(--radius-md);padding:16px;text-align:center;">
+        <div style="font-size:28px;font-weight:700;color:var(--info);">${watched}</div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">視聴済み</div>
+      </div>
+      <div style="background:var(--success-light);border-radius:var(--radius-md);padding:16px;text-align:center;">
+        <div style="font-size:28px;font-weight:700;color:var(--success);">${confirmed}</div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">確認済み</div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+        <span style="font-size:13px;font-weight:600;">スキル習得率</span>
+        <span style="font-size:13px;font-weight:700;color:var(--primary);">${progress}%</span>
+      </div>
+      <div style="background:var(--border);border-radius:999px;height:12px;overflow:hidden;">
+        <div style="background:linear-gradient(90deg,var(--primary),var(--info));
+          height:12px;border-radius:999px;width:0%;transition:width 0.8s ease;"
+          id="skill-progress-bar"></div>
+      </div>
+      <div style="font-size:11px;color:var(--text-secondary);margin-top:6px;">
+        店長に確認されたスキルが増えるほどレベルが上がります
+      </div>
+    </div>
+
+    <div style="background:var(--accent-light);border-radius:var(--radius-md);
+      padding:16px;text-align:center;">
+      <div style="font-size:11px;color:var(--text-secondary);margin-bottom:4px;">現在のスキルレベル</div>
+      <div style="font-size:36px;font-weight:700;color:var(--accent);">
+        Lv.${skillLevel}
+      </div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">
+        ${confirmed === 0 ? 'タスクをこなしてスキルを積み上げよう！' :
+          confirmed < 5 ? 'いいスタート！続けよう 🔥' :
+          confirmed < 10 ? '成長中！素晴らしい 🌟' : 'スキルマスター！⭐'}
+      </div>
+    </div>`;
+
+  setTimeout(() => {
+    const bar = document.getElementById('skill-progress-bar');
+    if (bar) bar.style.width = progress + '%';
+  }, 100);
 }
 
 async function renderTasks(content) {
@@ -1843,25 +1925,53 @@ async function watchTaskVideo(taskId, videoId) {
   } catch(e) {}
 }
 
-function renderMypage(content) {
+async function renderMypage(content) {
   content.style.cssText = 'height:100%;overflow-y:auto;padding:16px;background:var(--bg);';
+
   content.innerHTML = `
     <div style="background:white;border-radius:var(--radius-lg);padding:24px;
       margin-bottom:16px;box-shadow:var(--shadow-sm);text-align:center;">
       <div style="width:64px;height:64px;border-radius:50%;background:var(--primary);
         display:flex;align-items:center;justify-content:center;
         margin:0 auto 12px;font-size:24px;font-weight:700;color:white;">
-        ${(currentUser?.name || 'U')[0]}
+        ${(currentUser?.name||'U')[0]}
       </div>
-      <div style="font-size:18px;font-weight:700;margin-bottom:4px;">${currentUser?.name || ''}</div>
-      <div style="font-size:13px;color:var(--text-secondary);">${currentUser?.storeName || ''}</div>
+      <div style="font-size:18px;font-weight:700;margin-bottom:4px;">${currentUser?.name||''}</div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">${currentUser?.storeName||''}</div>
     </div>
+
+    <div style="display:flex;gap:8px;margin-bottom:16px;">
+      <button onclick="showSavedVideos('liked')" id="btn-liked" style="
+        flex:1;padding:12px;background:var(--primary);color:white;
+        border:none;border-radius:var(--radius-md);font-family:var(--font);
+        font-size:13px;font-weight:700;cursor:pointer;">
+        <i class="fa-solid fa-heart"></i> いいね
+      </button>
+      <button onclick="showSavedVideos('saved')" id="btn-saved" style="
+        flex:1;padding:12px;background:white;color:var(--text-secondary);
+        border:1px solid var(--border);border-radius:var(--radius-md);
+        font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;">
+        <i class="fa-solid fa-bookmark"></i> 保存済み
+      </button>
+    </div>
+
+    <div id="saved-video-list" style="margin-bottom:16px;">
+      <div style="background:white;border-radius:var(--radius-md);padding:24px;
+        text-align:center;color:var(--text-muted);box-shadow:var(--shadow-sm);">
+        <i class="fa-solid fa-heart" style="font-size:32px;margin-bottom:8px;display:block;"></i>
+        いいねした動画がここに表示されます
+      </div>
+    </div>
+
     <div style="background:white;border-radius:var(--radius-md);padding:16px;
       margin-bottom:8px;box-shadow:var(--shadow-sm);">
-      <div style="font-size:13px;font-weight:600;margin-bottom:12px;">言語設定</div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:12px;">
+        <i class="fa-solid fa-globe" style="color:var(--primary);margin-right:6px;"></i>
+        言語設定
+      </div>
       <select onchange="changeLang(this.value)" style="
         width:100%;padding:8px 12px;border:1.5px solid var(--border);
-        border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;">
+        border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;outline:none;">
         <option value="ja">🇯🇵 日本語</option>
         <option value="en">🇺🇸 English</option>
         <option value="vi">🇻🇳 Tiếng Việt</option>
@@ -1869,6 +1979,7 @@ function renderMypage(content) {
         <option value="ne">🇳🇵 नेपाली</option>
       </select>
     </div>
+
     <button onclick="logout()" style="
       width:100%;padding:12px;background:white;
       border:1.5px solid var(--danger);border-radius:var(--radius-md);
@@ -1876,6 +1987,41 @@ function renderMypage(content) {
       font-weight:600;cursor:pointer;">
       <i class="fa-solid fa-sign-out-alt"></i> ログアウト
     </button>`;
+}
+
+function showSavedVideos(type) {
+  const likedBtn = document.getElementById('btn-liked');
+  const savedBtn = document.getElementById('btn-saved');
+  const listEl = document.getElementById('saved-video-list');
+  if (!likedBtn || !savedBtn || !listEl) return;
+
+  if (type === 'liked') {
+    likedBtn.style.background = 'var(--primary)';
+    likedBtn.style.color = 'white';
+    likedBtn.style.border = 'none';
+    savedBtn.style.background = 'white';
+    savedBtn.style.color = 'var(--text-secondary)';
+    savedBtn.style.border = '1px solid var(--border)';
+    listEl.innerHTML = `
+      <div style="background:white;border-radius:var(--radius-md);padding:24px;
+        text-align:center;color:var(--text-muted);box-shadow:var(--shadow-sm);">
+        <i class="fa-solid fa-heart" style="font-size:32px;margin-bottom:8px;display:block;color:var(--danger);"></i>
+        いいねした動画がここに表示されます
+      </div>`;
+  } else {
+    savedBtn.style.background = 'var(--primary)';
+    savedBtn.style.color = 'white';
+    savedBtn.style.border = 'none';
+    likedBtn.style.background = 'white';
+    likedBtn.style.color = 'var(--text-secondary)';
+    likedBtn.style.border = '1px solid var(--border)';
+    listEl.innerHTML = `
+      <div style="background:white;border-radius:var(--radius-md);padding:24px;
+        text-align:center;color:var(--text-muted);box-shadow:var(--shadow-sm);">
+        <i class="fa-solid fa-bookmark" style="font-size:32px;margin-bottom:8px;display:block;color:var(--primary);"></i>
+        保存した動画がここに表示されます
+      </div>`;
+  }
 }
 
 function setupManagerLayout() {
@@ -2272,14 +2418,64 @@ async function updateTaskStatus(taskId, newStatus) {
   }
 }
 
-function renderManagerStaff(content) {
+async function renderManagerStaff(content) {
   content.innerHTML = `
     <div style="background:white;border-radius:var(--radius-md);padding:20px;box-shadow:var(--shadow-sm);">
       <div style="font-size:15px;font-weight:700;margin-bottom:16px;">スタッフ一覧</div>
-      <div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">
-        スタッフを招待するとここに表示されます
+      <div id="manager-staff-list">
+        <div style="text-align:center;padding:40px;color:var(--text-muted);">
+          <i class="fa-solid fa-spinner fa-spin" style="font-size:24px;"></i>
+        </div>
       </div>
     </div>`;
+
+  const listEl = document.getElementById('manager-staff-list');
+  let staffList = [];
+  try {
+    if (window._getDocs && window._query) {
+      const q = window._query(
+        window._collection(window._db, 'users'),
+        window._where('storeId', '==', currentUser?.storeId || ''),
+        window._where('role', '==', 'staff')
+      );
+      const snap = await window._getDocs(q);
+      snap.forEach(d => staffList.push({ id: d.id, ...d.data() }));
+    }
+  } catch(e) {}
+
+  if (staffList.length === 0) {
+    listEl.innerHTML = `<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">スタッフを招待するとここに表示されます</div>`;
+    return;
+  }
+
+  listEl.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead>
+        <tr style="border-bottom:2px solid var(--border);">
+          <th style="text-align:left;padding:8px 12px;color:var(--text-secondary);">名前</th>
+          <th style="text-align:left;padding:8px 12px;color:var(--text-secondary);">メール</th>
+          <th style="text-align:left;padding:8px 12px;color:var(--text-secondary);">登録日</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${staffList.map(s => `
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 12px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <div style="width:32px;height:32px;border-radius:50%;background:var(--primary);
+                  display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:700;">
+                  ${(s.displayName||'?')[0]}
+                </div>
+                ${s.displayName || '名前なし'}
+              </div>
+            </td>
+            <td style="padding:10px 12px;color:var(--text-secondary);">${s.email || '-'}</td>
+            <td style="padding:10px 12px;color:var(--text-secondary);">
+              ${s.createdAt?.toDate ? s.createdAt.toDate().toLocaleDateString('ja-JP') : '-'}
+            </td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
 }
 
 function renderManagerInvite(content) {
@@ -2370,20 +2566,22 @@ function navigateHQ(page) {
   else if (page === 'settings') renderHQSettings(content);
 }
 
-function renderHQDashboard(content) {
+async function renderHQDashboard(content) {
   content.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:24px;">
       ${[
-        ['fa-users','総スタッフ数','0名','var(--primary)'],
-        ['fa-play-circle','全社平均視聴率','0%','var(--success)'],
-        ['fa-eye','今週の総視聴数','0回','var(--info)'],
-        ['fa-hourglass','審査待ち','0本','var(--warning)'],
-        ['fa-store','店舗数','0店','var(--accent)'],
-      ].map(([icon,label,val,color]) => `
+        ['fa-users','総スタッフ数','hq-kpi-staff','var(--primary)'],
+        ['fa-play-circle','全社平均視聴率','hq-kpi-watch','var(--success)'],
+        ['fa-eye','今週の総視聴数','hq-kpi-views','var(--info)'],
+        ['fa-hourglass','審査待ち','hq-kpi-review','var(--warning)'],
+        ['fa-store','店舗数','hq-kpi-stores','var(--accent)'],
+      ].map(([icon,label,elId,color]) => `
         <div style="background:white;border-radius:var(--radius-md);padding:20px;
-          box-shadow:var(--shadow-sm);border-top:4px solid ${color};cursor:pointer;">
+          box-shadow:var(--shadow-sm);border-top:4px solid ${color};">
           <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">${label}</div>
-          <div style="font-size:28px;font-weight:700;">${val}</div>
+          <div id="${elId}" style="font-size:28px;font-weight:700;">
+            <i class="fa-solid fa-spinner fa-spin" style="font-size:16px;color:var(--text-muted);"></i>
+          </div>
         </div>`).join('')}
     </div>
     <div style="background:white;border-radius:var(--radius-md);padding:20px;
@@ -2394,12 +2592,77 @@ function renderHQDashboard(content) {
       </div>
       <div style="color:var(--text-muted);font-size:13px;">リクエストはありません</div>
     </div>
-    <button onclick="registerDummyData()" style="
+    <button onclick="registerDummyData(event)" style="
       padding:10px 20px;background:#F3F4F6;
       border:1px solid var(--border);border-radius:var(--radius-sm);
       font-family:var(--font);font-size:13px;cursor:pointer;">
       🔧 開発用：初期データを登録する
     </button>`;
+
+  await loadHQDashboardData();
+}
+
+async function loadHQDashboardData() {
+  try {
+    if (!window._getDocs || !window._query) return;
+    const companyId = currentUser?.companyId || 'company_001';
+
+    // 総スタッフ数
+    const staffSnap = await window._getDocs(window._query(
+      window._collection(window._db, 'users'),
+      window._where('companyId', '==', companyId),
+      window._where('role', '==', 'staff')
+    ));
+    const staffEl = document.getElementById('hq-kpi-staff');
+    if (staffEl) staffEl.textContent = staffSnap.size + '名';
+
+    // 審査待ち
+    const reviewSnap = await window._getDocs(window._query(
+      window._collection(window._db, 'videos'),
+      window._where('companyId', '==', companyId),
+      window._where('status', '==', 'pending')
+    ));
+    const reviewEl = document.getElementById('hq-kpi-review');
+    if (reviewEl) reviewEl.textContent = reviewSnap.size + '本';
+
+    // 総視聴数（today: 全動画のviewsの合計で代替）
+    const videoSnap = await window._getDocs(window._query(
+      window._collection(window._db, 'videos'),
+      window._where('companyId', '==', companyId)
+    ));
+    let totalViews = 0;
+    const storeSet = new Set();
+    videoSnap.forEach(d => {
+      const data = d.data();
+      totalViews += data.views || 0;
+      if (data.storeId) storeSet.add(data.storeId);
+    });
+    const viewsEl = document.getElementById('hq-kpi-views');
+    if (viewsEl) viewsEl.textContent = totalViews + '回';
+
+    const storesEl = document.getElementById('hq-kpi-stores');
+    if (storesEl) storesEl.textContent = storeSet.size + '店';
+
+    // 視聴率（watchHistory数 / スタッフ数*動画数）
+    const watchSnap = await window._getDocs(window._query(
+      window._collection(window._db, 'watchHistory'),
+      window._where('companyId', '==', companyId)
+    ));
+    const totalVideos = videoSnap.size;
+    const totalStaff = staffSnap.size;
+    let rate = 0;
+    if (totalStaff > 0 && totalVideos > 0) {
+      rate = Math.round(watchSnap.size / (totalStaff * totalVideos) * 100);
+    }
+    const watchEl = document.getElementById('hq-kpi-watch');
+    if (watchEl) watchEl.textContent = rate + '%';
+
+  } catch(e) {
+    ['hq-kpi-staff','hq-kpi-watch','hq-kpi-views','hq-kpi-review','hq-kpi-stores'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = '--';
+    });
+  }
 }
 
 async function renderHQVideos(content) {
@@ -2644,13 +2907,123 @@ async function rejectVideo(videoId) {
   }
 }
 
-function renderHQStaff(content) {
+async function renderHQStaff(content) {
+  // storeId一覧を先に取得してフィルターを作る
+  let stores = [];
+  try {
+    if (window._getDocs && window._query) {
+      const q = window._query(
+        window._collection(window._db, 'users'),
+        window._where('companyId', '==', currentUser?.companyId || 'company_001'),
+        window._where('role', '==', 'manager')
+      );
+      const snap = await window._getDocs(q);
+      const storeMap = {};
+      snap.forEach(d => {
+        const data = d.data();
+        if (data.storeId && !storeMap[data.storeId]) {
+          storeMap[data.storeId] = data.storeName || data.storeId;
+        }
+      });
+      stores = Object.entries(storeMap).map(([id, name]) => ({ id, name }));
+    }
+  } catch(e) {}
+
   content.innerHTML = `
-    <div style="background:white;border-radius:var(--radius-md);padding:20px;box-shadow:var(--shadow-sm);">
-      <div style="font-size:15px;font-weight:700;margin-bottom:16px;">全社スタッフ一覧</div>
-      <div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">
-        スタッフを招待するとここに表示されます
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+      <div style="font-size:15px;font-weight:700;">全社スタッフ一覧</div>
+      <select id="hq-staff-store-filter" onchange="filterHQStaff(this.value)"
+        style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);
+          font-family:var(--font);font-size:13px;background:white;cursor:pointer;">
+        <option value="all">全店舗</option>
+        ${stores.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
+      </select>
+    </div>
+    <div id="hq-staff-list">
+      <div style="text-align:center;padding:40px;color:var(--text-muted);">
+        <i class="fa-solid fa-spinner fa-spin" style="font-size:24px;"></i>
       </div>
+    </div>`;
+
+  await renderHQStaffList('all');
+}
+
+async function filterHQStaff(storeId) {
+  await renderHQStaffList(storeId);
+}
+
+async function renderHQStaffList(storeId) {
+  const listEl = document.getElementById('hq-staff-list');
+  if (!listEl) return;
+
+  let staffList = [];
+  try {
+    if (window._getDocs && window._query) {
+      let constraints = [
+        window._where('companyId', '==', currentUser?.companyId || 'company_001')
+      ];
+      if (storeId !== 'all') {
+        constraints.push(window._where('storeId', '==', storeId));
+      }
+      const q = window._query(
+        window._collection(window._db, 'users'),
+        ...constraints
+      );
+      const snap = await window._getDocs(q);
+      snap.forEach(d => staffList.push({ id: d.id, ...d.data() }));
+    }
+  } catch(e) {}
+
+  if (staffList.length === 0) {
+    listEl.innerHTML = `
+      <div style="background:white;border-radius:var(--radius-md);padding:40px;
+        text-align:center;color:var(--text-muted);box-shadow:var(--shadow-sm);">
+        スタッフを招待するとここに表示されます
+      </div>`;
+    return;
+  }
+
+  const roleLabel = { staff:'スタッフ', manager:'店長', headquarters:'本部' };
+  listEl.innerHTML = `
+    <div style="background:white;border-radius:var(--radius-md);box-shadow:var(--shadow-sm);overflow:hidden;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="border-bottom:2px solid var(--border);background:var(--bg);">
+            <th style="text-align:left;padding:10px 16px;color:var(--text-secondary);">名前</th>
+            <th style="text-align:left;padding:10px 16px;color:var(--text-secondary);">役職</th>
+            <th style="text-align:left;padding:10px 16px;color:var(--text-secondary);">店舗</th>
+            <th style="text-align:left;padding:10px 16px;color:var(--text-secondary);">登録日</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${staffList.map(s => `
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:12px 16px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <div style="width:32px;height:32px;border-radius:50%;background:var(--primary);
+                    display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:700;">
+                    ${(s.displayName||'?')[0]}
+                  </div>
+                  <div>
+                    <div style="font-weight:600;">${s.displayName || '名前なし'}</div>
+                    <div style="font-size:11px;color:var(--text-secondary);">${s.email || ''}</div>
+                  </div>
+                </div>
+              </td>
+              <td style="padding:12px 16px;">
+                <span style="padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;
+                  background:${s.role==='headquarters'?'var(--accent)':s.role==='manager'?'var(--primary)':'var(--success)'};
+                  color:white;">
+                  ${roleLabel[s.role] || s.role}
+                </span>
+              </td>
+              <td style="padding:12px 16px;color:var(--text-secondary);">${s.storeName || '-'}</td>
+              <td style="padding:12px 16px;color:var(--text-secondary);">
+                ${s.createdAt?.toDate ? s.createdAt.toDate().toLocaleDateString('ja-JP') : '-'}
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
     </div>`;
 }
 
@@ -2811,6 +3184,12 @@ function renderFeedSlides(videos) {
             <i class="fa-solid fa-bookmark" style="font-size:26px;color:white;"></i>
             <span style="color:white;font-size:11px;">保存</span>
           </button>
+          <button onclick="event.stopPropagation();openFeedbackModal('${v.id}','${v.title?.replace(/'/g,'')}')"
+            style="background:none;border:none;cursor:pointer;
+            display:flex;flex-direction:column;align-items:center;gap:4px;">
+            <i class="fa-solid fa-comment-dots" style="font-size:24px;color:white;"></i>
+            <span style="color:white;font-size:11px;">もっと知りたい</span>
+          </button>
         </div>
 
         <div style="position:absolute;bottom:80px;left:12px;right:64px;pointer-events:none;">
@@ -2939,7 +3318,219 @@ async function markWatched(videoId) {
     } catch(e) {}
   }
 }
-function toggleNotifications() {}
+function openNotificationDrawer() {
+  let drawer = document.getElementById('notification-drawer');
+  if (!drawer) {
+    drawer = document.createElement('div');
+    drawer.id = 'notification-drawer';
+    drawer.style.cssText = `
+      position:fixed;top:0;right:-320px;width:320px;height:100vh;
+      background:white;box-shadow:var(--shadow-lg);z-index:1000;
+      transition:right 0.3s ease;display:flex;flex-direction:column;`;
+    drawer.innerHTML = `
+      <div style="padding:16px;border-bottom:1px solid var(--border);
+        display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-size:16px;font-weight:700;">通知</div>
+        <button onclick="closeNotificationDrawer()" style="
+          background:none;border:none;cursor:pointer;font-size:20px;
+          color:var(--text-muted);">
+          <i class="fa-solid fa-times"></i>
+        </button>
+      </div>
+      <div id="notification-list" style="flex:1;overflow-y:auto;padding:8px;">
+        <div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px;">
+          <i class="fa-solid fa-spinner fa-spin"></i>
+        </div>
+      </div>`;
+    document.body.appendChild(drawer);
+
+    const overlay = document.createElement('div');
+    overlay.id = 'notification-overlay';
+    overlay.style.cssText = `
+      position:fixed;top:0;left:0;width:100%;height:100%;
+      background:rgba(0,0,0,0.3);z-index:999;display:none;`;
+    overlay.onclick = closeNotificationDrawer;
+    document.body.appendChild(overlay);
+  }
+
+  drawer.style.right = '0';
+  document.getElementById('notification-overlay').style.display = 'block';
+  loadNotifications();
+}
+
+function closeNotificationDrawer() {
+  const drawer = document.getElementById('notification-drawer');
+  const overlay = document.getElementById('notification-overlay');
+  if (drawer) drawer.style.right = '-320px';
+  if (overlay) overlay.style.display = 'none';
+}
+
+async function loadNotifications() {
+  const listEl = document.getElementById('notification-list');
+  if (!listEl) return;
+
+  let notifications = [];
+  try {
+    if (window._getDocs && window._query) {
+      const q = window._query(
+        window._collection(window._db, 'notifications'),
+        window._where('companyId', '==', currentUser?.companyId || 'company_001')
+      );
+      const snap = await window._getDocs(q);
+      snap.forEach(d => notifications.push({ id: d.id, ...d.data() }));
+    }
+  } catch(e) {}
+
+  if (notifications.length === 0) {
+    listEl.innerHTML = `
+      <div style="padding:40px;text-align:center;color:var(--text-muted);font-size:13px;">
+        <i class="fa-solid fa-bell-slash" style="font-size:32px;margin-bottom:8px;display:block;"></i>
+        通知はありません
+      </div>`;
+    return;
+  }
+
+  const typeIcons = {
+    video_request: 'fa-video',
+    task: 'fa-list-check',
+    feedback: 'fa-comment-alt',
+    default: 'fa-bell'
+  };
+  const typeColors = {
+    video_request: 'var(--primary)',
+    task: 'var(--success)',
+    feedback: 'var(--accent)',
+    default: 'var(--info)'
+  };
+
+  listEl.innerHTML = notifications.map(n => {
+    const icon = typeIcons[n.type] || typeIcons.default;
+    const color = typeColors[n.type] || typeColors.default;
+    return `
+      <div style="padding:12px;border-bottom:1px solid var(--border-light,#F3F4F6);
+        display:flex;gap:10px;${n.read ? 'opacity:0.6;' : ''}">
+        <div style="width:36px;height:36px;border-radius:50%;background:${color}20;
+          display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <i class="fa-solid ${icon}" style="color:${color};font-size:14px;"></i>
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:13px;margin-bottom:4px;">${n.message||''}</div>
+          <div style="font-size:11px;color:var(--text-muted);">
+            ${n.createdAt?.toDate?.()?.toLocaleDateString('ja-JP') || ''}
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+function openFeedbackModal(videoId, videoTitle) {
+  let modal = document.getElementById('feedback-modal');
+  if (modal) modal.remove();
+
+  modal = document.createElement('div');
+  modal.id = 'feedback-modal';
+  modal.style.cssText = `
+    position:fixed;top:0;left:0;width:100%;height:100%;
+    background:rgba(0,0,0,0.5);z-index:2000;
+    display:flex;align-items:flex-end;justify-content:center;`;
+  modal.innerHTML = `
+    <div style="background:white;border-radius:16px 16px 0 0;
+      width:100%;max-width:480px;padding:20px 16px 40px;">
+      <div style="font-size:15px;font-weight:700;margin-bottom:16px;">
+        もっと知りたい
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+        ${[
+          'もう少し具体的に教えてほしい',
+          'ここをもっと詳しく知りたい',
+          '実際にやってみたい',
+          'このテーマの応用を知りたい'
+        ].map(text => `
+          <button onclick="selectFeedback(this,'${text}')" style="
+            padding:12px;background:var(--bg);border:1.5px solid var(--border);
+            border-radius:var(--radius-sm);font-family:var(--font);
+            font-size:13px;cursor:pointer;text-align:left;
+            transition:border-color 0.15s;">
+            ${text}
+          </button>`).join('')}
+      </div>
+      <div style="margin-bottom:16px;">
+        <textarea id="feedback-text" rows="3" placeholder="具体的に教えてください（任意）"
+          style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
+          border-radius:var(--radius-sm);font-family:var(--font);font-size:13px;
+          outline:none;resize:none;"></textarea>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="sendVideoFeedback('${videoId}','${videoTitle}')" style="
+          flex:1;padding:12px;background:var(--primary);color:white;
+          border:none;border-radius:var(--radius-sm);font-family:var(--font);
+          font-size:14px;font-weight:700;cursor:pointer;">送信する</button>
+        <button onclick="document.getElementById('feedback-modal').remove()" style="
+          padding:12px 16px;background:white;color:var(--text-secondary);
+          border:1px solid var(--border);border-radius:var(--radius-sm);
+          font-family:var(--font);font-size:13px;cursor:pointer;">キャンセル</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  window._currentFeedbackVideoId = videoId;
+  window._currentFeedbackVideoTitle = videoTitle;
+  window._selectedFeedbackText = '';
+}
+
+function selectFeedback(btn, text) {
+  document.querySelectorAll('#feedback-modal button[onclick^="selectFeedback"]').forEach(b => {
+    b.style.borderColor = 'var(--border)';
+    b.style.background = 'var(--bg)';
+    b.style.color = 'var(--text-primary)';
+  });
+  btn.style.borderColor = 'var(--primary)';
+  btn.style.background = 'var(--primary-light)';
+  btn.style.color = 'var(--primary)';
+  window._selectedFeedbackText = text;
+}
+
+async function sendVideoFeedback(videoId, videoTitle) {
+  const selected = window._selectedFeedbackText || '';
+  const freeText = document.getElementById('feedback-text')?.value.trim() || '';
+  const message = [selected, freeText].filter(Boolean).join('：');
+
+  if (!message) {
+    showToast('リアクションを選択してください', 'error');
+    return;
+  }
+
+  try {
+    if (window._addDoc && window._collection) {
+      await window._addDoc(
+        window._collection(window._db, 'videoFeedbacks'), {
+          videoId,
+          videoTitle,
+          message,
+          fromUserId: currentUser?.uid,
+          fromUserName: currentUser?.name,
+          storeId: currentUser?.storeId,
+          companyId: currentUser?.companyId || 'company_001',
+          read: false,
+          createdAt: window._serverTimestamp()
+        }
+      );
+      await window._addDoc(
+        window._collection(window._db, 'notifications'), {
+          type: 'video_feedback',
+          message: `${currentUser?.name}が「${videoTitle}」に：「${message}」`,
+          companyId: currentUser?.companyId || 'company_001',
+          targetRole: 'manager',
+          read: false,
+          createdAt: window._serverTimestamp()
+        }
+      );
+    }
+    document.getElementById('feedback-modal')?.remove();
+    showToast('リアクションを送りました ✅');
+  } catch(e) {
+    showToast('送信に失敗しました', 'error');
+  }
+}
+
 function changeLang(lang) { currentLang = lang; }
 async function generateInvite(role) {
   if (!currentUser) return;
@@ -3083,11 +3674,13 @@ async function submitVideo() {
     if (btn) { btn.textContent = '投稿申請する'; btn.disabled = false; }
   }
 }
-async function registerDummyData() {
+async function registerDummyData(event) {
   if (!window._addDoc || !window._collection) {
     showToast('Firebase未接続です', 'error');
     return;
   }
+  const btn = event?.target;
+  if (btn) { btn.disabled = true; btn.textContent = '登録中...'; }
   const dummyVideos = [
     { title:'ねぎまの仕込み', genre:'仕込み', channel:'common',
       isOnboarding:false, type:'official', companyId:'company_001',
@@ -3129,8 +3722,10 @@ async function registerDummyData() {
       );
     }
     showToast('初期データを登録しました ✅');
+    if (btn) { btn.textContent = '✅ 登録完了'; }
   } catch(e) {
     showToast('登録に失敗しました: ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '🔧 開発用：初期データを登録する'; }
   }
 }
 function logout() { location.reload(); }
