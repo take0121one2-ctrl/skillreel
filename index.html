@@ -1730,15 +1730,117 @@ function renderSkills(content) {
       </div>`).join('')}`;
 }
 
-function renderTasks(content) {
+async function renderTasks(content) {
   content.style.cssText = 'height:100%;overflow-y:auto;padding:16px;background:var(--bg);';
+
   content.innerHTML = `
     <div style="font-size:18px;font-weight:700;margin-bottom:16px;">タスク</div>
-    <div style="background:white;border-radius:var(--radius-md);padding:20px;
-      text-align:center;color:var(--text-muted);box-shadow:var(--shadow-sm);">
-      <i class="fa-solid fa-list-check" style="font-size:32px;margin-bottom:8px;display:block;"></i>
-      タスクはありません
-    </div>`;
+    <div style="display:flex;gap:8px;margin-bottom:16px;overflow-x:auto;">
+      ${['unwatched','watched','confirmed'].map((s,i) => {
+        const labels = ['未視聴','視聴済み','確認済み'];
+        return `<button onclick="filterTasks('${s}')" id="task-tab-${s}" style="
+          padding:6px 14px;border-radius:999px;border:1px solid var(--border);
+          background:${i===0?'var(--primary)':'white'};
+          color:${i===0?'white':'var(--text-secondary)'};
+          font-family:var(--font);font-size:12px;font-weight:600;
+          cursor:pointer;white-space:nowrap;">${labels[i]}</button>`;
+      }).join('')}
+    </div>
+    <div id="task-list"></div>`;
+
+  await loadMyTasks('unwatched');
+}
+
+let currentTaskFilter = 'unwatched';
+
+async function loadMyTasks(status) {
+  currentTaskFilter = status;
+  const listEl = document.getElementById('task-list');
+  if (!listEl) return;
+
+  listEl.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text-muted);">
+    <i class="fa-solid fa-spinner fa-spin"></i> 読み込み中...</div>`;
+
+  let tasks = [];
+
+  try {
+    if (window._getDocs && window._query && window._collection) {
+      const q = window._query(
+        window._collection(window._db, 'taskAssignments'),
+        window._where('assignedTo', '==', currentUser?.uid || 'dev_staff'),
+        window._where('status', '==', status)
+      );
+      const snap = await window._getDocs(q);
+      snap.forEach(d => tasks.push({ id: d.id, ...d.data() }));
+    }
+  } catch(e) {}
+
+  if (tasks.length === 0) {
+    listEl.innerHTML = `
+      <div style="background:white;border-radius:var(--radius-md);padding:24px;
+        text-align:center;color:var(--text-muted);box-shadow:var(--shadow-sm);">
+        <i class="fa-solid fa-list-check" style="font-size:32px;margin-bottom:8px;display:block;"></i>
+        ${status==='unwatched'?'未視聴のタスクはありません':
+          status==='watched'?'視聴済みのタスクはありません':'確認済みのタスクはありません'}
+      </div>`;
+    return;
+  }
+
+  const statusColors = {
+    unwatched: 'var(--text-muted)',
+    watched: 'var(--info)',
+    confirmed: 'var(--success)'
+  };
+  const statusLabels = {
+    unwatched: '未視聴',
+    watched: '視聴済み',
+    confirmed: '確認済み'
+  };
+
+  listEl.innerHTML = tasks.map(t => `
+    <div style="background:white;border-radius:var(--radius-md);padding:16px;
+      margin-bottom:8px;box-shadow:var(--shadow-sm);">
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;">
+        <div style="font-size:14px;font-weight:700;flex:1;">${t.videoTitle||t.title||''}</div>
+        <span style="background:${statusColors[t.status]};color:white;
+          padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;
+          margin-left:8px;white-space:nowrap;">${statusLabels[t.status]||t.status}</span>
+      </div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">
+        期日：${t.dueDate||'未設定'}
+      </div>
+      ${t.status === 'unwatched' ? `
+        <button onclick="watchTaskVideo('${t.id}','${t.videoId||''}')" style="
+          width:100%;padding:10px;background:var(--primary);color:white;
+          border:none;border-radius:var(--radius-sm);font-family:var(--font);
+          font-size:13px;font-weight:600;cursor:pointer;">
+          <i class="fa-solid fa-play"></i> 動画を見る
+        </button>` : ''}
+    </div>`).join('');
+}
+
+function filterTasks(status) {
+  ['unwatched','watched','confirmed'].forEach(s => {
+    const btn = document.getElementById('task-tab-' + s);
+    if (btn) {
+      btn.style.background = s === status ? 'var(--primary)' : 'white';
+      btn.style.color = s === status ? 'white' : 'var(--text-secondary)';
+    }
+  });
+  loadMyTasks(status);
+}
+
+async function watchTaskVideo(taskId, videoId) {
+  navigateStaff('feed');
+  showToast('タスクの動画を表示しています');
+  try {
+    if (window._updateDoc && window._doc) {
+      await window._updateDoc(
+        window._doc(window._db, 'taskAssignments', taskId),
+        { status: 'watched', watchedAt: window._serverTimestamp() }
+      );
+    }
+  } catch(e) {}
 }
 
 function renderMypage(content) {
@@ -1952,11 +2054,222 @@ function renderManagerTasks(content) {
   content.innerHTML = `
     <div style="background:white;border-radius:var(--radius-md);padding:20px;
       box-shadow:var(--shadow-sm);margin-bottom:16px;">
-      <div style="font-size:15px;font-weight:700;margin-bottom:16px;">タスクを送る</div>
-      <div style="color:var(--text-muted);font-size:13px;">
-        スタッフを招待後にタスクを送ることができます
+      <button onclick="toggleTaskForm()" style="
+        width:100%;padding:12px;background:var(--primary);color:white;
+        border:none;border-radius:var(--radius-md);font-family:var(--font);
+        font-size:14px;font-weight:700;cursor:pointer;">
+        <i class="fa-solid fa-plus"></i> タスクを送る
+      </button>
+      <div id="task-form" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:16px;">
+        <div style="margin-bottom:12px;">
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">
+            対象スタッフ <span style="color:var(--danger);">*</span>
+          </label>
+          <div id="staff-checklist" style="border:1px solid var(--border);
+            border-radius:var(--radius-sm);padding:8px;max-height:150px;overflow-y:auto;">
+            <div style="font-size:12px;color:var(--text-muted);">読み込み中...</div>
+          </div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">
+            動画を選択 <span style="color:var(--danger);">*</span>
+          </label>
+          <div id="video-checklist" style="border:1px solid var(--border);
+            border-radius:var(--radius-sm);padding:8px;max-height:150px;overflow-y:auto;">
+            <div style="font-size:12px;color:var(--text-muted);">読み込み中...</div>
+          </div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">期日</label>
+          <input type="date" id="task-due" style="
+            width:100%;padding:8px 12px;border:1.5px solid var(--border);
+            border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;outline:none;">
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="sendTasks()" style="
+            flex:1;padding:10px;background:var(--primary);color:white;
+            border:none;border-radius:var(--radius-sm);font-family:var(--font);
+            font-size:13px;font-weight:700;cursor:pointer;">送信する</button>
+          <button onclick="toggleTaskForm()" style="
+            padding:10px 16px;background:white;color:var(--text-secondary);
+            border:1px solid var(--border);border-radius:var(--radius-sm);
+            font-family:var(--font);font-size:13px;cursor:pointer;">キャンセル</button>
+        </div>
       </div>
-    </div>`;
+    </div>
+
+    <div style="display:flex;gap:8px;margin-bottom:16px;">
+      ${['unwatched','watched','confirmed'].map((s,i) => {
+        const labels = ['未視聴','視聴済み','確認済み'];
+        return `<button onclick="loadManagerTasks('${s}')" id="mgr-task-tab-${s}" style="
+          padding:6px 14px;border-radius:999px;border:1px solid var(--border);
+          background:${i===0?'var(--primary)':'white'};
+          color:${i===0?'white':'var(--text-secondary)'};
+          font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;">
+          ${labels[i]}</button>`;
+      }).join('')}
+    </div>
+    <div id="manager-task-list"></div>`;
+
+  loadManagerTaskForm();
+  loadManagerTasks('unwatched');
+}
+
+async function toggleTaskForm() {
+  const form = document.getElementById('task-form');
+  if (!form) return;
+  const isHidden = form.style.display === 'none';
+  form.style.display = isHidden ? 'block' : 'none';
+}
+
+async function loadManagerTaskForm() {
+  const staffEl = document.getElementById('staff-checklist');
+  const videoEl = document.getElementById('video-checklist');
+  if (!staffEl || !videoEl) return;
+
+  let staffList = [];
+  let videoList = [];
+
+  try {
+    if (window._getDocs && window._query) {
+      const sq = window._query(
+        window._collection(window._db, 'users'),
+        window._where('storeId', '==', currentUser?.storeId || 'store_001'),
+        window._where('role', '==', 'staff')
+      );
+      const ss = await window._getDocs(sq);
+      ss.forEach(d => staffList.push({ id: d.id, ...d.data() }));
+
+      const vq = window._query(
+        window._collection(window._db, 'videos'),
+        window._where('companyId', '==', currentUser?.companyId || 'company_001'),
+        window._where('published', '==', true)
+      );
+      const vs = await window._getDocs(vq);
+      vs.forEach(d => videoList.push({ id: d.id, ...d.data() }));
+    }
+  } catch(e) {}
+
+  if (staffList.length === 0) {
+    staffEl.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">スタッフがいません</div>';
+  } else {
+    staffEl.innerHTML = staffList.map(s => `
+      <label style="display:flex;align-items:center;gap:8px;padding:6px;cursor:pointer;">
+        <input type="checkbox" value="${s.id}" class="staff-check">
+        <span style="font-size:13px;">${s.name}</span>
+      </label>`).join('');
+  }
+
+  if (videoList.length === 0) {
+    videoEl.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">動画がありません</div>';
+  } else {
+    videoEl.innerHTML = videoList.map(v => `
+      <label style="display:flex;align-items:center;gap:8px;padding:6px;cursor:pointer;">
+        <input type="checkbox" value="${v.id}" data-title="${v.title}" class="video-check">
+        <span style="font-size:13px;">${v.title}</span>
+      </label>`).join('');
+  }
+}
+
+async function sendTasks() {
+  const staffIds = [...document.querySelectorAll('.staff-check:checked')].map(c => c.value);
+  const videos = [...document.querySelectorAll('.video-check:checked')].map(c => ({
+    id: c.value, title: c.dataset.title
+  }));
+  const due = document.getElementById('task-due')?.value || '';
+
+  if (staffIds.length === 0) { showToast('スタッフを選択してください', 'error'); return; }
+  if (videos.length === 0) { showToast('動画を選択してください', 'error'); return; }
+
+  try {
+    for (const uid of staffIds) {
+      for (const v of videos) {
+        if (window._addDoc) {
+          await window._addDoc(
+            window._collection(window._db, 'taskAssignments'), {
+              videoId: v.id,
+              videoTitle: v.title,
+              assignedTo: uid,
+              assignedBy: currentUser?.uid,
+              assignerName: currentUser?.name,
+              storeId: currentUser?.storeId || 'store_001',
+              companyId: currentUser?.companyId || 'company_001',
+              status: 'unwatched',
+              dueDate: due,
+              createdAt: window._serverTimestamp()
+            });
+        }
+      }
+    }
+    showToast(`${staffIds.length}名にタスクを送信しました ✅`);
+    toggleTaskForm();
+  } catch(e) {
+    showToast('送信に失敗しました: ' + e.message, 'error');
+  }
+}
+
+async function loadManagerTasks(status) {
+  ['unwatched','watched','confirmed'].forEach(s => {
+    const btn = document.getElementById('mgr-task-tab-' + s);
+    if (btn) {
+      btn.style.background = s === status ? 'var(--primary)' : 'white';
+      btn.style.color = s === status ? 'white' : 'var(--text-secondary)';
+    }
+  });
+
+  const listEl = document.getElementById('manager-task-list');
+  if (!listEl) return;
+  listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i></div>';
+
+  let tasks = [];
+  try {
+    if (window._getDocs && window._query) {
+      const q = window._query(
+        window._collection(window._db, 'taskAssignments'),
+        window._where('storeId', '==', currentUser?.storeId || 'store_001'),
+        window._where('status', '==', status)
+      );
+      const snap = await window._getDocs(q);
+      snap.forEach(d => tasks.push({ id: d.id, ...d.data() }));
+    }
+  } catch(e) {}
+
+  if (tasks.length === 0) {
+    listEl.innerHTML = `<div style="background:white;border-radius:var(--radius-md);
+      padding:24px;text-align:center;color:var(--text-muted);box-shadow:var(--shadow-sm);">
+      タスクはありません</div>`;
+    return;
+  }
+
+  listEl.innerHTML = tasks.map(t => `
+    <div style="background:white;border-radius:var(--radius-md);padding:16px;
+      margin-bottom:8px;box-shadow:var(--shadow-sm);display:flex;align-items:center;gap:12px;">
+      <div style="flex:1;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:4px;">${t.videoTitle||''}</div>
+        <div style="font-size:12px;color:var(--text-secondary);">期日：${t.dueDate||'未設定'}</div>
+      </div>
+      <select onchange="updateTaskStatus('${t.id}',this.value)" style="
+        padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);
+        font-family:var(--font);font-size:12px;outline:none;">
+        <option value="unwatched" ${t.status==='unwatched'?'selected':''}>未視聴</option>
+        <option value="watched" ${t.status==='watched'?'selected':''}>視聴済み</option>
+        <option value="confirmed" ${t.status==='confirmed'?'selected':''}>確認済み</option>
+      </select>
+    </div>`).join('');
+}
+
+async function updateTaskStatus(taskId, newStatus) {
+  try {
+    if (window._updateDoc && window._doc) {
+      await window._updateDoc(
+        window._doc(window._db, 'taskAssignments', taskId),
+        { status: newStatus, updatedAt: window._serverTimestamp() }
+      );
+    }
+    showToast('ステータスを更新しました');
+  } catch(e) {
+    showToast('更新に失敗しました', 'error');
+  }
 }
 
 function renderManagerStaff(content) {
