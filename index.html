@@ -1656,48 +1656,52 @@ function navigateStaff(page) {
 
 function renderFeed(content) {
   content.style.cssText = 'height:100%;background:#000;overflow:hidden;position:relative;';
+
   content.innerHTML = `
-    <div style="height:100%;display:flex;flex-direction:column;">
-      <div style="display:flex;gap:8px;padding:8px 12px;background:rgba(0,0,0,0.5);position:absolute;top:0;width:100%;z-index:10;">
+    <div style="position:absolute;top:0;width:100%;z-index:10;padding:8px 12px;">
+      <div style="display:flex;gap:6px;margin-bottom:8px;overflow-x:auto;padding-bottom:2px;">
         ${CHANNELS.map(c => `
           <button onclick="switchChannel('${c.id}')" id="ch-${c.id}" style="
-            padding:6px 12px;border-radius:999px;border:none;cursor:pointer;font-size:12px;
-            font-family:var(--font);font-weight:600;
+            padding:6px 12px;border-radius:999px;border:none;cursor:pointer;
+            font-size:12px;font-family:var(--font);font-weight:600;white-space:nowrap;
             background:${currentChannel===c.id ? 'white' : 'rgba(255,255,255,0.2)'};
             color:${currentChannel===c.id ? 'var(--text-primary)' : 'white'};">
             <i class="fa-solid ${c.icon}"></i> ${c.label}
           </button>`).join('')}
       </div>
-      <div style="position:absolute;top:52px;width:100%;z-index:10;padding:8px 12px;">
-        <div style="background:rgba(255,255,255,0.15);border-radius:999px;
-          display:flex;align-items:center;gap:8px;padding:8px 14px;">
-          <i class="fa-solid fa-search" style="color:white;font-size:14px;"></i>
-          <input id="feed-search" type="text" placeholder="動画を検索..." oninput="filterFeed()"
-            style="background:none;border:none;outline:none;color:white;
-            font-family:var(--font);font-size:14px;flex:1;">
-        </div>
-        <div style="display:flex;gap:6px;margin-top:8px;overflow-x:auto;padding-bottom:4px;">
-          <button onclick="filterGenre('')" style="
-            padding:4px 12px;border-radius:999px;border:none;cursor:pointer;
-            background:white;color:var(--text-primary);font-size:11px;
-            font-family:var(--font);white-space:nowrap;">全て</button>
-          ${GENRES.map(g => `
-            <button onclick="filterGenre('${g}')" style="
-              padding:4px 12px;border-radius:999px;border:none;cursor:pointer;
-              background:rgba(255,255,255,0.2);color:white;font-size:11px;
-              font-family:var(--font);white-space:nowrap;">${g}</button>`).join('')}
-        </div>
+      <div style="background:rgba(255,255,255,0.15);border-radius:999px;
+        display:flex;align-items:center;gap:8px;padding:8px 14px;">
+        <i class="fa-solid fa-search" style="color:white;font-size:13px;"></i>
+        <input id="feed-search" type="text" placeholder="動画を検索..."
+          oninput="filterFeedVideos()"
+          style="background:none;border:none;outline:none;color:white;
+          font-family:var(--font);font-size:13px;flex:1;">
       </div>
-      <div id="feed-video-area" style="
-        flex:1;display:flex;align-items:center;justify-content:center;
-        background:linear-gradient(180deg,#1E2A3A,#2563EB);
-        margin-top:120px;">
-        <div style="text-align:center;color:white;">
-          <i class="fa-solid fa-play" style="font-size:64px;opacity:0.5;margin-bottom:16px;display:block;"></i>
-          <div style="font-size:16px;opacity:0.7;">動画を読み込み中...</div>
-        </div>
+      <div style="display:flex;gap:6px;margin-top:6px;overflow-x:auto;padding-bottom:2px;">
+        <button onclick="filterGenre('')" id="genre-all" style="
+          padding:3px 10px;border-radius:999px;border:none;cursor:pointer;
+          background:white;color:var(--text-primary);font-size:11px;
+          font-family:var(--font);white-space:nowrap;font-weight:600;">全て</button>
+        ${GENRES.map(g => `
+          <button onclick="filterGenre('${g}')" id="genre-${g}" style="
+            padding:3px 10px;border-radius:999px;border:none;cursor:pointer;
+            background:rgba(255,255,255,0.2);color:white;font-size:11px;
+            font-family:var(--font);white-space:nowrap;">${g}</button>`).join('')}
       </div>
+    </div>
+    <div id="feed-slides" style="
+      height:100%;display:flex;flex-direction:column;
+      overflow-y:scroll;scroll-snap-type:y mandatory;
+      scrollbar-width:none;">
+    </div>
+    <div id="feed-loading" style="
+      position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+      color:white;text-align:center;">
+      <i class="fa-solid fa-spinner fa-spin" style="font-size:32px;margin-bottom:8px;display:block;"></i>
+      読み込み中...
     </div>`;
+
+  loadFeedVideos();
 }
 
 function renderSkills(content) {
@@ -2143,15 +2147,269 @@ function renderHQSettings(content) {
     </div>`;
 }
 
-function switchChannel(channelId) {
-  currentChannel = channelId;
-  if (currentPage === 'feed') {
-    renderFeed(document.getElementById('main-content'));
+let allFeedVideos = [];
+let currentGenreFilter = '';
+
+async function loadFeedVideos() {
+  const slidesEl = document.getElementById('feed-slides');
+  const loadingEl = document.getElementById('feed-loading');
+  if (!slidesEl) return;
+
+  try {
+    let videos = [];
+
+    if (window._getDocs && window._collection && window._query) {
+      const constraints = [
+        window._where('companyId', '==', currentUser?.companyId || 'company_001'),
+        window._where('published', '==', true),
+        window._where('channel', '==', currentChannel)
+      ];
+      const q = window._query(
+        window._collection(window._db, 'videos'),
+        ...constraints
+      );
+      const snapshot = await window._getDocs(q);
+      snapshot.forEach(doc => {
+        videos.push({ id: doc.id, ...doc.data() });
+      });
+    }
+
+    if (videos.length === 0) {
+      videos = getDummyVideos().filter(v => v.channel === currentChannel);
+    }
+
+    allFeedVideos = videos;
+    if (loadingEl) loadingEl.style.display = 'none';
+    renderFeedSlides(videos);
+
+  } catch(e) {
+    console.error(e);
+    const videos = getDummyVideos().filter(v => v.channel === currentChannel);
+    allFeedVideos = videos;
+    if (loadingEl) loadingEl.style.display = 'none';
+    renderFeedSlides(videos);
   }
 }
 
-function filterFeed() {}
-function filterGenre(genre) {}
+function getDummyVideos() {
+  return [
+    { id:'d1', title:'ねぎまの仕込み', genre:'仕込み', channel:'common',
+      isOnboarding:false, type:'official', companyId:'company_001',
+      uploaderName:'本部', likes:12, views:48, isOfficial:true,
+      videoURL:'', thumbnailURL:'', description:'串打ちから焼き上げまでの基本手順' },
+    { id:'d2', title:'レモンサワーの作り方', genre:'ドリンク', channel:'common',
+      isOnboarding:false, type:'official', companyId:'company_001',
+      uploaderName:'本部', likes:24, views:67, isOfficial:true,
+      videoURL:'', thumbnailURL:'', description:'黄金比レシピ' },
+    { id:'d3', title:'席案内の流れ', genre:'ホール', channel:'common',
+      isOnboarding:true, type:'official', companyId:'company_001',
+      uploaderName:'本部', likes:31, views:89, isOfficial:true,
+      videoURL:'', thumbnailURL:'', description:'新人必見：お客様を席まで案内する一連の動作' },
+    { id:'d4', title:'洗い場の回し方', genre:'ノウハウ', channel:'store',
+      isOnboarding:false, type:'field', companyId:'company_001',
+      storeId:'store_001', storeName:'五反田店',
+      uploaderName:'山田店長', likes:8, views:21, isOfficial:false,
+      videoURL:'', thumbnailURL:'', description:'ピーク時の洗い場ナレッジ' },
+    { id:'d5', title:'今月のキャンペーン', genre:'広報', channel:'pr',
+      isOnboarding:false, type:'official', companyId:'company_001',
+      uploaderName:'本部', likes:5, views:32, isOfficial:true,
+      videoURL:'', thumbnailURL:'', description:'3月の季節限定メニューキャンペーン' }
+  ];
+}
+
+function renderFeedSlides(videos) {
+  const slidesEl = document.getElementById('feed-slides');
+  if (!slidesEl) return;
+
+  if (videos.length === 0) {
+    slidesEl.innerHTML = `
+      <div style="height:100vh;scroll-snap-align:start;display:flex;
+        align-items:center;justify-content:center;color:white;text-align:center;">
+        <div>
+          <i class="fa-solid fa-video-slash" style="font-size:48px;opacity:0.5;margin-bottom:16px;display:block;"></i>
+          <div style="font-size:16px;opacity:0.7;">動画がありません</div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const gradients = {
+    '仕込み': 'linear-gradient(180deg,#1a1a2e,#4286f4)',
+    'ドリンク': 'linear-gradient(180deg,#0f3460,#16213e)',
+    'ホール': 'linear-gradient(180deg,#134e5e,#71b280)',
+    'ノウハウ': 'linear-gradient(180deg,#2c3e50,#3498db)',
+    '広報': 'linear-gradient(180deg,#c94b4b,#4b134f)',
+    '調理': 'linear-gradient(180deg,#1a1a2e,#e74c3c)',
+    '新人教育': 'linear-gradient(180deg,#0f4c75,#1b262c)',
+    'その他': 'linear-gradient(180deg,#373b44,#4286f4)'
+  };
+
+  slidesEl.innerHTML = videos.map((v, i) => {
+    const bg = gradients[v.genre] || 'linear-gradient(180deg,#1E2A3A,#2563EB)';
+    const hasVideo = v.videoURL && v.videoURL.length > 0;
+    const hasThumbnail = v.thumbnailURL && v.thumbnailURL.length > 0;
+
+    return `
+      <div style="height:100vh;scroll-snap-align:start;position:relative;
+        flex-shrink:0;background:${bg};"
+        onclick="toggleFeedDetail('detail-${i}')">
+
+        ${hasVideo ? `
+          <video src="${v.videoURL}" style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;"
+            playsinline loop muted autoplay></video>` :
+        hasThumbnail ? `
+          <img src="${v.thumbnailURL}" style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;">` :
+        `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
+          <i class="fa-solid fa-play" style="font-size:72px;color:rgba(255,255,255,0.3);"></i>
+        </div>`}
+
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+          pointer-events:none;opacity:0.15;">
+          <i class="fa-solid fa-play" style="font-size:80px;color:white;"></i>
+        </div>
+
+        <div style="position:absolute;right:12px;bottom:120px;
+          display:flex;flex-direction:column;gap:20px;align-items:center;">
+          <button onclick="event.stopPropagation();likeVideo('${v.id}',this)"
+            style="background:none;border:none;cursor:pointer;
+            display:flex;flex-direction:column;align-items:center;gap:4px;">
+            <i class="fa-solid fa-heart" style="font-size:28px;color:white;"></i>
+            <span style="color:white;font-size:11px;">${v.likes||0}</span>
+          </button>
+          <button onclick="event.stopPropagation();"
+            style="background:none;border:none;cursor:pointer;
+            display:flex;flex-direction:column;align-items:center;gap:4px;">
+            <i class="fa-solid fa-bookmark" style="font-size:26px;color:white;"></i>
+            <span style="color:white;font-size:11px;">保存</span>
+          </button>
+        </div>
+
+        <div style="position:absolute;bottom:80px;left:12px;right:64px;pointer-events:none;">
+          <div style="display:flex;gap:6px;margin-bottom:6px;">
+            ${v.isOfficial ? `<span style="background:var(--primary);color:white;
+              padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;">公式</span>` : ''}
+            ${v.isOnboarding ? `<span style="background:var(--success);color:white;
+              padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;">新人教育</span>` : ''}
+            ${!v.isOfficial ? `<span style="background:var(--accent);color:white;
+              padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;">現場ナレッジ</span>` : ''}
+          </div>
+          <div style="color:white;font-size:16px;font-weight:700;
+            text-shadow:0 1px 4px rgba(0,0,0,0.5);margin-bottom:4px;">
+            ${v.title}
+          </div>
+          <div style="color:rgba(255,255,255,0.8);font-size:12px;">${v.uploaderName||''}</div>
+        </div>
+
+        <div id="detail-${i}" style="
+          position:absolute;bottom:0;left:0;right:0;
+          background:rgba(15,23,42,0.92);backdrop-filter:blur(8px);
+          border-radius:16px 16px 0 0;padding:20px 16px 90px;
+          transform:translateY(100%);transition:transform 0.3s ease;z-index:20;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <span style="background:var(--primary);color:white;padding:3px 10px;
+              border-radius:999px;font-size:12px;font-weight:600;">${v.genre||''}</span>
+            <button onclick="event.stopPropagation();toggleFeedDetail('detail-${i}')"
+              style="background:rgba(255,255,255,0.15);border:none;color:white;
+              border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:14px;">
+              <i class="fa-solid fa-times"></i>
+            </button>
+          </div>
+          <div style="color:white;font-size:18px;font-weight:700;margin-bottom:8px;">${v.title}</div>
+          <div style="color:rgba(255,255,255,0.7);font-size:13px;margin-bottom:16px;">${v.description||''}</div>
+          <div style="display:flex;gap:10px;">
+            <button onclick="event.stopPropagation();markWatched('${v.id}')"
+              style="flex:1;padding:12px;background:var(--success);color:white;
+              border:none;border-radius:var(--radius-sm);font-family:var(--font);
+              font-size:14px;font-weight:600;cursor:pointer;">
+              <i class="fa-solid fa-check"></i> 理解できた
+            </button>
+            <button onclick="event.stopPropagation();toggleFeedDetail('detail-${i}')"
+              style="padding:12px 16px;background:rgba(255,255,255,0.15);
+              color:white;border:none;border-radius:var(--radius-sm);
+              font-family:var(--font);font-size:14px;cursor:pointer;">
+              もう一度
+            </button>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function toggleFeedDetail(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const isVisible = el.style.transform === 'translateY(0%)';
+  document.querySelectorAll('[id^="detail-"]').forEach(d => {
+    d.style.transform = 'translateY(100%)';
+  });
+  if (!isVisible) el.style.transform = 'translateY(0%)';
+}
+
+function filterFeedVideos() {
+  const search = document.getElementById('feed-search')?.value?.toLowerCase() || '';
+  const filtered = allFeedVideos.filter(v => {
+    const matchSearch = !search ||
+      v.title?.toLowerCase().includes(search) ||
+      v.description?.toLowerCase().includes(search) ||
+      v.uploaderName?.toLowerCase().includes(search);
+    const matchGenre = !currentGenreFilter || v.genre === currentGenreFilter;
+    return matchSearch && matchGenre;
+  });
+  renderFeedSlides(filtered);
+}
+
+function filterGenre(genre) {
+  currentGenreFilter = genre;
+  document.getElementById('genre-all').style.background =
+    genre === '' ? 'white' : 'rgba(255,255,255,0.2)';
+  document.getElementById('genre-all').style.color =
+    genre === '' ? 'var(--text-primary)' : 'white';
+  GENRES.forEach(g => {
+    const btn = document.getElementById('genre-' + g);
+    if (btn) {
+      btn.style.background = g === genre ? 'white' : 'rgba(255,255,255,0.2)';
+      btn.style.color = g === genre ? 'var(--text-primary)' : 'white';
+    }
+  });
+  filterFeedVideos();
+}
+
+function switchChannel(channelId) {
+  currentChannel = channelId;
+  const content = document.getElementById('main-content');
+  if (content && currentPage === 'feed') renderFeed(content);
+}
+
+async function likeVideo(videoId, btn) {
+  try {
+    if (window._updateDoc && window._doc && window._increment) {
+      await window._updateDoc(
+        window._doc(window._db, 'videos', videoId),
+        { likes: window._increment(1) }
+      );
+    }
+    const countEl = btn.querySelector('span');
+    if (countEl) countEl.textContent = parseInt(countEl.textContent||0) + 1;
+    btn.querySelector('i').style.color = '#FF3B5C';
+    showToast('いいね！');
+  } catch(e) {
+    showToast('いいね！');
+  }
+}
+
+async function markWatched(videoId) {
+  showToast('視聴済みにしました ✅');
+  if (window._addDoc && window._collection) {
+    try {
+      await window._addDoc(window._collection(window._db, 'watchHistory'), {
+        videoId,
+        userId: currentUser?.uid,
+        companyId: currentUser?.companyId,
+        watchedAt: window._serverTimestamp()
+      });
+    } catch(e) {}
+  }
+}
 function toggleNotifications() {}
 function changeLang(lang) { currentLang = lang; }
 async function generateInvite(role) {
