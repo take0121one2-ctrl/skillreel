@@ -3193,6 +3193,7 @@ function setupHQLayout() {
         <div style="padding:8px 0;flex:1;overflow-y:auto;">
           ${[
             ['dashboard','fa-th-large','ダッシュボード'],
+            ['upload','fa-upload','動画投稿'],
             ['videos','fa-video','動画管理'],
             ['staff','fa-users','全社スタッフ'],
             ['invite','fa-user-plus','招待'],
@@ -3252,17 +3253,181 @@ function navigateHQ(page) {
   }
   closeSidebar();
   const titles = {
-    dashboard:'ダッシュボード', videos:'動画管理',
+    dashboard:'ダッシュボード', upload:'動画投稿', videos:'動画管理',
     staff:'全社スタッフ', invite:'招待', settings:'設定'
   };
   const titleEl = document.getElementById('hq-page-title');
   if (titleEl) titleEl.textContent = titles[page] || '';
   const content = document.getElementById('main-content');
   if (page === 'dashboard') renderHQDashboard(content);
+  else if (page === 'upload') renderHQUpload(content);
   else if (page === 'videos') renderHQVideos(content);
   else if (page === 'staff') renderHQStaff(content);
   else if (page === 'invite') renderHQInvite(content);
   else if (page === 'settings') renderHQSettings(content);
+}
+
+function renderHQUpload(content) {
+  content.innerHTML = `
+    <div style="background:white;border-radius:var(--radius-md);
+      padding:24px;box-shadow:var(--shadow-sm);">
+      <div style="font-size:15px;font-weight:700;margin-bottom:20px;">動画を投稿する</div>
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div>
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">
+            タイトル <span style="color:var(--danger);">*</span>
+          </label>
+          <input id="up-title" type="text" placeholder="動画タイトルを入力"
+            style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
+            border-radius:var(--radius-sm);font-family:var(--font);
+            font-size:14px;outline:none;">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div>
+            <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">
+              チャンネル <span style="color:var(--danger);">*</span>
+            </label>
+            <select id="up-channel" style="width:100%;padding:10px 12px;
+              border:1.5px solid var(--border);border-radius:var(--radius-sm);
+              font-family:var(--font);font-size:14px;outline:none;">
+              ${CHANNELS.map(c => `<option value="${c.id}">${c.label}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">
+              ジャンル <span style="color:var(--danger);">*</span>
+            </label>
+            <select id="up-genre" style="width:100%;padding:10px 12px;
+              border:1.5px solid var(--border);border-radius:var(--radius-sm);
+              font-family:var(--font);font-size:14px;outline:none;">
+              ${GENRES.map(g => `<option value="${g}">${g}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div>
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">
+            説明文
+          </label>
+          <textarea id="up-desc" rows="3" placeholder="動画の説明を入力"
+            style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
+            border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;
+            outline:none;resize:vertical;"></textarea>
+        </div>
+        <div>
+          <label style="display:flex;align-items:center;gap:8px;
+            cursor:pointer;font-size:13px;">
+            <input type="checkbox" id="up-onboarding">
+            <span>新人教育フォルダに追加する</span>
+          </label>
+        </div>
+        <div>
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">
+            YouTube URL <span style="color:var(--danger);">*</span>
+          </label>
+          <input id="up-video-url" type="url"
+            placeholder="https://www.youtube.com/watch?v=..."
+            style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
+            border-radius:var(--radius-sm);font-family:var(--font);
+            font-size:14px;outline:none;">
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
+            YouTube・YouTube Shorts どちらも対応
+          </div>
+        </div>
+        <div>
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">
+            サムネイル画像URL（任意）
+          </label>
+          <input id="up-thumb-url" type="url"
+            placeholder="https://... （空欄の場合はYouTubeから自動取得）"
+            style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
+            border-radius:var(--radius-sm);font-family:var(--font);
+            font-size:14px;outline:none;">
+        </div>
+        <button onclick="submitVideo()" style="
+          padding:12px;background:var(--primary);color:white;border:none;
+          border-radius:var(--radius-md);font-family:var(--font);font-size:14px;
+          font-weight:700;cursor:pointer;">
+          <i class="fa-solid fa-upload"></i> 投稿する（即時公開）
+        </button>
+      </div>
+
+      <div style="margin-top:24px;border-top:1px solid var(--border);padding-top:20px;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:12px;">
+          投稿済み動画
+        </div>
+        <div id="hq-upload-list">
+          <div style="text-align:center;color:var(--text-muted);font-size:13px;padding:20px;">
+            <i class="fa-solid fa-spinner fa-spin"></i>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  loadHQUploadList();
+}
+
+async function loadHQUploadList() {
+  const listEl = document.getElementById('hq-upload-list');
+  if (!listEl) return;
+
+  let videos = [];
+  try {
+    if (window._getDocs && window._query) {
+      const q = window._query(
+        window._collection(window._db, 'videos'),
+        window._where('companyId', '==', currentUser?.companyId || 'company_001'),
+        window._where('uploadedBy', '==', currentUser?.uid || '')
+      );
+      const snap = await window._getDocs(q);
+      snap.forEach(d => videos.push({ id: d.id, ...d.data() }));
+    }
+  } catch(e) {}
+
+  if (videos.length === 0) {
+    listEl.innerHTML = `
+      <div style="text-align:center;color:var(--text-muted);font-size:13px;padding:20px;">
+        投稿した動画はありません
+      </div>`;
+    return;
+  }
+
+  listEl.innerHTML = videos.map(v => `
+    <div style="display:flex;align-items:center;gap:12px;padding:12px;
+      border:1px solid var(--border);border-radius:var(--radius-sm);
+      margin-bottom:8px;">
+      <div style="width:64px;height:44px;border-radius:var(--radius-sm);
+        background:linear-gradient(135deg,#1E2A3A,#2563EB);
+        flex-shrink:0;overflow:hidden;display:flex;
+        align-items:center;justify-content:center;">
+        ${v.thumbnailURL
+          ? `<img src="${v.thumbnailURL}"
+              style="width:100%;height:100%;object-fit:cover;">`
+          : `<i class="fa-solid fa-play"
+              style="color:rgba(255,255,255,0.5);font-size:14px;"></i>`}
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:700;
+          white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+          ${v.title||''}
+        </div>
+        <div style="font-size:11px;color:var(--text-secondary);">
+          ${v.genre||''} · ${v.channel||''}
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <span style="padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;
+          background:${v.published ? 'var(--success-light)' : 'var(--warning-light)'};
+          color:${v.published ? 'var(--success)' : 'var(--warning)'};">
+          ${v.published ? '公開中' : '非公開'}
+        </span>
+        <button onclick="openVideoEditModal('${v.id}')" style="
+          padding:6px 10px;border:1px solid var(--primary);
+          border-radius:var(--radius-sm);background:white;
+          color:var(--primary);font-size:11px;font-weight:600;cursor:pointer;">
+          編集
+        </button>
+      </div>
+    </div>`).join('');
 }
 
 async function renderHQDashboard(content) {
