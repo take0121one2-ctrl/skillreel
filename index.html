@@ -2133,7 +2133,6 @@ function setupManagerLayout() {
             ['upload','fa-upload','動画投稿'],
             ['tasks','fa-tasks','タスク管理'],
             ['staff','fa-users','スタッフ一覧'],
-            ['request','fa-comment-alt','改善リクエスト'],
             ['invite','fa-user-plus','招待'],
           ].map(([p,icon,label]) => `
             <div onclick="navigateManager('${p}')" id="nav-${p}" style="
@@ -2199,8 +2198,7 @@ function navigateManager(page) {
   }
   const titles = {
     dashboard:'ダッシュボード', upload:'動画投稿',
-    tasks:'タスク管理', staff:'スタッフ一覧',
-    request:'改善リクエスト', invite:'招待'
+    tasks:'タスク管理', staff:'スタッフ一覧', invite:'招待'
   };
   const titleEl = document.getElementById('page-title');
   if (titleEl) titleEl.textContent = titles[page] || '';
@@ -2209,31 +2207,197 @@ function navigateManager(page) {
   else if (page === 'upload') renderManagerUpload(content);
   else if (page === 'tasks') renderManagerTasks(content);
   else if (page === 'staff') renderManagerStaff(content);
-  else if (page === 'request') renderManagerRequest(content);
   else if (page === 'invite') renderManagerInvite(content);
 }
 
-function renderManagerDashboard(content) {
+async function renderManagerDashboard(content) {
   content.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">
-      ${[
-        ['fa-users','在籍スタッフ','0名','var(--primary)'],
-        ['fa-play-circle','今週の平均視聴率','0%','var(--success)'],
-        ['fa-clock','確認待ち','0件','var(--warning)'],
-        ['fa-eye-slash','未視聴タスク','0件','var(--danger)'],
-      ].map(([icon,label,val,color]) => `
-        <div style="background:white;border-radius:var(--radius-md);padding:20px;
-          box-shadow:var(--shadow-sm);border-top:4px solid ${color};">
-          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">${label}</div>
-          <div style="font-size:32px;font-weight:700;">${val}</div>
-        </div>`).join('')}
+    <div class="kpi-grid" style="display:grid;grid-template-columns:repeat(4,1fr);
+      gap:16px;margin-bottom:24px;">
+      <div style="background:white;border-radius:var(--radius-md);padding:20px;
+        box-shadow:var(--shadow-sm);border-top:4px solid var(--primary);">
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">在籍スタッフ</div>
+        <div id="mgr-staff-count" style="font-size:32px;font-weight:700;">--</div>
+      </div>
+      <div style="background:white;border-radius:var(--radius-md);padding:20px;
+        box-shadow:var(--shadow-sm);border-top:4px solid var(--success);">
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">今週の視聴数</div>
+        <div id="mgr-views-count" style="font-size:32px;font-weight:700;">--</div>
+      </div>
+      <div style="background:white;border-radius:var(--radius-md);padding:20px;
+        box-shadow:var(--shadow-sm);border-top:4px solid var(--warning);">
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">確認待ち</div>
+        <div id="mgr-pending-count" style="font-size:32px;font-weight:700;">--</div>
+      </div>
+      <div style="background:white;border-radius:var(--radius-md);padding:20px;
+        box-shadow:var(--shadow-sm);border-top:4px solid var(--danger);">
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">未視聴タスク</div>
+        <div id="mgr-unwatched-count" style="font-size:32px;font-weight:700;">--</div>
+      </div>
     </div>
-    <div style="background:white;border-radius:var(--radius-md);padding:20px;box-shadow:var(--shadow-sm);">
+
+    <div style="background:white;border-radius:var(--radius-md);padding:20px;
+      box-shadow:var(--shadow-sm);margin-bottom:16px;">
+      <div style="font-size:15px;font-weight:700;margin-bottom:16px;">
+        <i class="fa-solid fa-clock" style="color:var(--warning);margin-right:6px;"></i>
+        今日確認すること（視聴済み・承認待ち）
+      </div>
+      <div id="mgr-action-list">
+        <div style="text-align:center;padding:20px;color:var(--text-muted);">
+          <i class="fa-solid fa-spinner fa-spin"></i>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:white;border-radius:var(--radius-md);padding:20px;
+      box-shadow:var(--shadow-sm);">
       <div style="font-size:15px;font-weight:700;margin-bottom:16px;">スタッフ視聴状況</div>
-      <div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">
-        スタッフを招待するとここに表示されます
+      <div id="mgr-staff-list">
+        <div style="text-align:center;padding:20px;color:var(--text-muted);">
+          <i class="fa-solid fa-spinner fa-spin"></i>
+        </div>
       </div>
     </div>`;
+
+  loadManagerDashboardData();
+}
+
+async function loadManagerDashboardData() {
+  const storeId = currentUser?.storeId || 'store_001';
+  const companyId = currentUser?.companyId || 'company_001';
+
+  try {
+    if (!window._getDocs || !window._query) return;
+
+    // スタッフ数
+    const staffQ = window._query(
+      window._collection(window._db, 'users'),
+      window._where('storeId', '==', storeId),
+      window._where('role', '==', 'staff')
+    );
+    const staffSnap = await window._getDocs(staffQ);
+    const staffList = [];
+    staffSnap.forEach(d => staffList.push({ id: d.id, ...d.data() }));
+    const staffCountEl = document.getElementById('mgr-staff-count');
+    if (staffCountEl) staffCountEl.textContent = staffList.length + '名';
+
+    // タスク集計
+    const taskQ = window._query(
+      window._collection(window._db, 'taskAssignments'),
+      window._where('storeId', '==', storeId)
+    );
+    const taskSnap = await window._getDocs(taskQ);
+    let unwatched = 0, watched = 0, views = 0;
+    const watchedTasks = [];
+    taskSnap.forEach(d => {
+      const data = { id: d.id, ...d.data() };
+      if (data.status === 'unwatched') unwatched++;
+      if (data.status === 'watched') { watched++; watchedTasks.push(data); views++; }
+      if (data.status === 'confirmed') views++;
+    });
+    const unwatchedEl = document.getElementById('mgr-unwatched-count');
+    if (unwatchedEl) unwatchedEl.textContent = unwatched + '件';
+    const pendingEl = document.getElementById('mgr-pending-count');
+    if (pendingEl) pendingEl.textContent = watched + '件';
+    const viewsEl = document.getElementById('mgr-views-count');
+    if (viewsEl) viewsEl.textContent = views + '回';
+
+    // 今日確認すること
+    const actionEl = document.getElementById('mgr-action-list');
+    if (actionEl) {
+      if (watchedTasks.length === 0) {
+        actionEl.innerHTML = `
+          <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;">
+            確認待ちのスタッフはいません ✅
+          </div>`;
+      } else {
+        const staffMap = {};
+        staffList.forEach(s => { staffMap[s.id] = s.name || s.displayName || '名前なし'; });
+        actionEl.innerHTML = watchedTasks.map(t => `
+          <div style="display:flex;align-items:center;gap:12px;padding:10px;
+            border:1px solid var(--warning-light);border-radius:var(--radius-sm);
+            margin-bottom:8px;background:var(--warning-light);">
+            <div style="width:36px;height:36px;border-radius:50%;background:var(--warning);
+              display:flex;align-items:center;justify-content:center;
+              color:white;font-size:14px;font-weight:700;flex-shrink:0;">
+              ${(staffMap[t.assignedTo]||'?')[0]}
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:700;">
+                ${staffMap[t.assignedTo]||'不明'}
+              </div>
+              <div style="font-size:12px;color:var(--text-secondary);">
+                「${t.videoTitle||''}」を視聴済み
+              </div>
+            </div>
+            <button onclick="updateTaskStatus('${t.id}','confirmed')" style="
+              padding:6px 12px;background:var(--success);color:white;
+              border:none;border-radius:var(--radius-sm);font-size:12px;
+              font-weight:700;cursor:pointer;white-space:nowrap;">
+              確認済みにする
+            </button>
+          </div>`).join('');
+      }
+    }
+
+    // スタッフ視聴状況
+    const staffListEl = document.getElementById('mgr-staff-list');
+    if (staffListEl) {
+      if (staffList.length === 0) {
+        staffListEl.innerHTML = `
+          <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;">
+            スタッフを招待するとここに表示されます
+          </div>`;
+      } else {
+        staffListEl.innerHTML = `
+          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead>
+              <tr style="border-bottom:2px solid var(--border);">
+                <th style="text-align:left;padding:8px 12px;color:var(--text-secondary);">名前</th>
+                <th style="text-align:left;padding:8px 12px;color:var(--text-secondary);">視聴済み</th>
+                <th style="text-align:left;padding:8px 12px;color:var(--text-secondary);">確認済み</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${staffList.map(s => {
+                const myTasks = taskSnap.docs
+                  .map(d => d.data())
+                  .filter(t => t.assignedTo === s.id);
+                const myWatched = myTasks.filter(t => t.status === 'watched').length;
+                const myConfirmed = myTasks.filter(t => t.status === 'confirmed').length;
+                return `
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:10px 12px;">
+                      <div style="display:flex;align-items:center;gap:8px;">
+                        <div style="width:28px;height:28px;border-radius:50%;
+                          background:var(--primary);display:flex;align-items:center;
+                          justify-content:center;color:white;font-size:12px;font-weight:700;">
+                          ${(s.name||s.displayName||'?')[0]}
+                        </div>
+                        ${s.name || s.displayName || '名前なし'}
+                      </div>
+                    </td>
+                    <td style="padding:10px 12px;">
+                      <span style="background:var(--info-light);color:var(--info);
+                        padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">
+                        ${myWatched}件
+                      </span>
+                    </td>
+                    <td style="padding:10px 12px;">
+                      <span style="background:var(--success-light);color:var(--success);
+                        padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">
+                        ${myConfirmed}件
+                      </span>
+                    </td>
+                  </tr>`;
+              }).join('')}
+            </tbody>
+          </table>`;
+      }
+    }
+  } catch(e) {
+    console.error(e);
+  }
 }
 
 function renderManagerUpload(content) {
@@ -2317,6 +2481,13 @@ function renderManagerTasks(content) {
         border:none;border-radius:var(--radius-md);font-family:var(--font);
         font-size:14px;font-weight:700;cursor:pointer;">
         <i class="fa-solid fa-plus"></i> タスクを送る
+      </button>
+      <button onclick="sendOnboardingTasks()" style="
+        width:100%;padding:12px;background:var(--success);color:white;
+        border:none;border-radius:var(--radius-md);font-family:var(--font);
+        font-size:14px;font-weight:700;cursor:pointer;margin-top:8px;">
+        <i class="fa-solid fa-graduation-cap"></i>
+        新人教育タスクをまとめて送る
       </button>
 
       <div id="task-form" style="display:none;margin-top:16px;
@@ -2462,6 +2633,147 @@ async function loadVideosByFolder(folder) {
       ${v.isOnboarding ? `<span style="background:var(--info-light);color:var(--info);
         padding:2px 6px;border-radius:999px;font-size:10px;font-weight:600;">新人</span>` : ''}
     </label>`).join('');
+}
+
+async function sendOnboardingTasks() {
+  let modal = document.getElementById('onboarding-modal');
+  if (modal) modal.remove();
+
+  modal = document.createElement('div');
+  modal.id = 'onboarding-modal';
+  modal.style.cssText = `
+    position:fixed;top:0;left:0;width:100%;height:100%;
+    background:rgba(0,0,0,0.5);z-index:2000;
+    display:flex;align-items:center;justify-content:center;padding:16px;`;
+
+  modal.innerHTML = `
+    <div style="background:white;border-radius:var(--radius-lg);
+      width:100%;max-width:480px;max-height:90vh;overflow-y:auto;">
+      <div style="padding:20px;border-bottom:1px solid var(--border);
+        display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-size:16px;font-weight:700;">
+          <i class="fa-solid fa-graduation-cap" style="color:var(--success);margin-right:8px;"></i>
+          新人教育タスクを送る
+        </div>
+        <button onclick="document.getElementById('onboarding-modal').remove()" style="
+          background:none;border:none;cursor:pointer;font-size:20px;color:var(--text-muted);">
+          <i class="fa-solid fa-times"></i>
+        </button>
+      </div>
+      <div style="padding:20px;">
+        <div style="margin-bottom:16px;">
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:8px;">
+            送る相手を選択 <span style="color:var(--danger);">*</span>
+          </label>
+          <div id="ob-staff-list" style="border:1px solid var(--border);
+            border-radius:var(--radius-sm);padding:8px;max-height:150px;overflow-y:auto;">
+            <div style="text-align:center;color:var(--text-muted);font-size:13px;">
+              <i class="fa-solid fa-spinner fa-spin"></i>
+            </div>
+          </div>
+        </div>
+        <div style="background:var(--success-light);border-radius:var(--radius-sm);
+          padding:12px;margin-bottom:16px;font-size:13px;color:var(--success);">
+          <i class="fa-solid fa-info-circle" style="margin-right:6px;"></i>
+          新人教育フォルダの全動画が自動でタスクとして送られます
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">期日</label>
+          <input type="date" id="ob-due" style="
+            width:100%;padding:8px 12px;border:1.5px solid var(--border);
+            border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;outline:none;">
+        </div>
+        <button onclick="executeOnboardingTasks()" style="
+          width:100%;padding:12px;background:var(--success);color:white;
+          border:none;border-radius:var(--radius-md);font-family:var(--font);
+          font-size:14px;font-weight:700;cursor:pointer;">
+          <i class="fa-solid fa-paper-plane"></i> 送信する
+        </button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  // スタッフ一覧を読み込む
+  const obStaffEl = document.getElementById('ob-staff-list');
+  let staffList = [];
+  try {
+    if (window._getDocs && window._query) {
+      const q = window._query(
+        window._collection(window._db, 'users'),
+        window._where('storeId', '==', currentUser?.storeId || 'store_001'),
+        window._where('role', '==', 'staff')
+      );
+      const snap = await window._getDocs(q);
+      snap.forEach(d => staffList.push({ id: d.id, ...d.data() }));
+    }
+  } catch(e) {}
+
+  if (staffList.length === 0) {
+    obStaffEl.innerHTML = `<div style="font-size:12px;color:var(--text-muted);">スタッフがいません</div>`;
+  } else {
+    obStaffEl.innerHTML = staffList.map(s => `
+      <label style="display:flex;align-items:center;gap:8px;padding:6px;cursor:pointer;">
+        <input type="checkbox" value="${s.id}" class="ob-staff-check">
+        <span style="font-size:13px;">${s.name || s.displayName || '名前なし'}</span>
+      </label>`).join('');
+  }
+}
+
+async function executeOnboardingTasks() {
+  const staffIds = [...document.querySelectorAll('.ob-staff-check:checked')].map(c => c.value);
+  const due = document.getElementById('ob-due')?.value || '';
+
+  if (staffIds.length === 0) {
+    showToast('スタッフを選択してください', 'error');
+    return;
+  }
+
+  let videos = [];
+  try {
+    if (window._getDocs && window._query) {
+      const q = window._query(
+        window._collection(window._db, 'videos'),
+        window._where('companyId', '==', currentUser?.companyId || 'company_001'),
+        window._where('isOnboarding', '==', true),
+        window._where('published', '==', true)
+      );
+      const snap = await window._getDocs(q);
+      snap.forEach(d => videos.push({ id: d.id, ...d.data() }));
+    }
+  } catch(e) {}
+
+  if (videos.length === 0) {
+    showToast('新人教育動画がありません', 'error');
+    return;
+  }
+
+  try {
+    for (const uid of staffIds) {
+      for (const v of videos) {
+        if (window._addDoc) {
+          await window._addDoc(
+            window._collection(window._db, 'taskAssignments'), {
+              videoId: v.id,
+              videoTitle: v.title,
+              assignedTo: uid,
+              assignedBy: currentUser?.uid,
+              assignerName: currentUser?.name,
+              storeId: currentUser?.storeId || 'store_001',
+              companyId: currentUser?.companyId || 'company_001',
+              status: 'unwatched',
+              dueDate: due,
+              isOnboarding: true,
+              createdAt: window._serverTimestamp()
+            }
+          );
+        }
+      }
+    }
+    document.getElementById('onboarding-modal')?.remove();
+    showToast(`${staffIds.length}名に新人教育タスク${videos.length}件を送信しました ✅`);
+  } catch(e) {
+    showToast('送信に失敗しました: ' + e.message, 'error');
+  }
 }
 
 async function toggleTaskForm() {
@@ -2667,9 +2979,9 @@ async function renderManagerStaff(content) {
               <div style="display:flex;align-items:center;gap:8px;">
                 <div style="width:32px;height:32px;border-radius:50%;background:var(--primary);
                   display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:700;">
-                  ${(s.displayName||'?')[0]}
+                  ${(s.name||s.displayName||'?')[0]}
                 </div>
-                ${s.displayName || '名前なし'}
+                ${s.name || s.displayName || '名前なし'}
               </div>
             </td>
             <td style="padding:10px 12px;color:var(--text-secondary);">${s.email || '-'}</td>
@@ -3667,10 +3979,10 @@ async function renderHQStaffList(storeId) {
                 <div style="display:flex;align-items:center;gap:8px;">
                   <div style="width:32px;height:32px;border-radius:50%;background:var(--primary);
                     display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:700;">
-                    ${(s.displayName||'?')[0]}
+                    ${(s.name||s.displayName||'?')[0]}
                   </div>
                   <div>
-                    <div style="font-weight:600;">${s.displayName || '名前なし'}</div>
+                    <div style="font-weight:600;">${s.name || s.displayName || '名前なし'}</div>
                     <div style="font-size:11px;color:var(--text-secondary);">${s.email || ''}</div>
                   </div>
                 </div>
@@ -3993,6 +4305,16 @@ async function markWatched(videoId) {
   const companyId = currentUser?.companyId || 'company_001';
 
   try {
+    // views数をインクリメント
+    if (videoId && !videoId.startsWith('d') && window._updateDoc && window._increment) {
+      try {
+        await window._updateDoc(
+          window._doc(window._db, 'videos', videoId),
+          { views: window._increment(1) }
+        );
+      } catch(e) {}
+    }
+
     if (window._addDoc && window._collection) {
       await window._addDoc(
         window._collection(window._db, 'watchHistory'), {
