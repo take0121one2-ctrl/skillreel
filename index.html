@@ -1630,7 +1630,20 @@ function setupStaffLayout() {
       height:56px;background:var(--sidebar-bg);
       display:flex;align-items:center;justify-content:space-between;
       padding:0 16px;flex-shrink:0;">
-      <span style="color:white;font-size:18px;font-weight:700;">SkillReel</span>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="color:white;font-size:18px;font-weight:700;">SkillReel</span>
+        <div style="
+          background:rgba(37,99,235,0.15);
+          border:1px solid rgba(37,99,235,0.3);
+          border-radius:999px;
+          padding:3px 10px;
+          font-size:11px;
+          font-weight:700;
+          color:var(--primary);">
+          <i class="fa-solid fa-user" style="margin-right:4px;"></i>
+          スタッフ画面
+        </div>
+      </div>
       <div style="display:flex;gap:12px;">
         <button onclick="openNotificationDrawer()" style="background:none;border:none;color:white;font-size:18px;cursor:pointer;">
           <i class="fa-solid fa-bell"></i>
@@ -2166,9 +2179,17 @@ function setupManagerLayout() {
             <span id="page-title" style="font-size:16px;font-weight:700;"></span>
           </div>
           <div style="display:flex;align-items:center;gap:12px;">
-            <span style="font-size:13px;color:var(--text-secondary);">
-              ${currentUser?.storeName || ''}の管理画面
-            </span>
+            <div style="
+              background:rgba(245,158,11,0.12);
+              border:1px solid rgba(245,158,11,0.3);
+              border-radius:999px;
+              padding:4px 12px;
+              font-size:12px;
+              font-weight:700;
+              color:var(--warning);">
+              <i class="fa-solid fa-store" style="margin-right:4px;"></i>
+              店長管理画面
+            </div>
             <button onclick="openNotificationDrawer()" style="
               background:none;border:none;cursor:pointer;font-size:20px;
               color:var(--text-secondary);">
@@ -3226,11 +3247,24 @@ function setupHQLayout() {
             </button>
             <span id="hq-page-title" style="font-size:16px;font-weight:700;"></span>
           </div>
-          <button onclick="openNotificationDrawer()" style="
-            background:none;border:none;cursor:pointer;font-size:20px;
-            color:var(--text-secondary);">
-            <i class="fa-solid fa-bell"></i>
-          </button>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="
+              background:rgba(22,163,74,0.1);
+              border:1px solid rgba(22,163,74,0.3);
+              border-radius:999px;
+              padding:4px 12px;
+              font-size:12px;
+              font-weight:700;
+              color:var(--success);">
+              <i class="fa-solid fa-building" style="margin-right:4px;"></i>
+              本部管理画面
+            </div>
+            <button onclick="openNotificationDrawer()" style="
+              background:none;border:none;cursor:pointer;font-size:20px;
+              color:var(--text-secondary);">
+              <i class="fa-solid fa-bell"></i>
+            </button>
+          </div>
         </div>
         <div id="main-content" style="flex:1;overflow-y:auto;padding:24px;background:var(--bg);"></div>
       </div>
