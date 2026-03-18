@@ -146,40 +146,6 @@
     .btn-google:hover { background: var(--bg); box-shadow: var(--shadow-sm); }
     .btn-google:active { background: #f0f0f0; }
 
-    .login-divider {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      color: var(--text-muted);
-      font-size: 12px;
-      margin: 8px 0 16px;
-    }
-    .login-divider::before,
-    .login-divider::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: var(--border);
-    }
-
-    .quick-login-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 8px;
-    }
-
-    .btn-quick {
-      height: 40px;
-      border-radius: var(--radius-md);
-      font-size: 13px;
-      font-weight: 600;
-      transition: opacity 0.15s;
-    }
-    .btn-quick:hover { opacity: 0.85; }
-    .btn-quick-staff   { background: var(--info-light);    color: var(--info); }
-    .btn-quick-manager { background: var(--accent-light);  color: var(--warning); }
-    .btn-quick-hq      { background: var(--primary-light); color: var(--primary); }
-
     /* =============================================
        アプリ画面 共通レイアウト
     ============================================= */
@@ -1526,53 +1492,18 @@ function showLoginScreen() {
       </div>`;
   } else {
     screen.innerHTML = `
-      <div style="background:white;border-radius:var(--radius-xl);
-        padding:48px 40px;max-width:400px;width:100%;
-        box-shadow:var(--shadow-lg);">
-        <div style="text-align:center;margin-bottom:36px;">
-          <div style="width:56px;height:56px;background:var(--primary);
-            border-radius:var(--radius-md);display:flex;align-items:center;
-            justify-content:center;margin:0 auto 16px;">
-            <i class="fa-solid fa-play" style="color:white;font-size:22px;"></i>
+      <div class="login-card">
+        <div class="login-header">
+          <div class="login-logo">
+            <i class="fa-solid fa-play"></i>
           </div>
-          <div style="font-size:28px;font-weight:700;margin-bottom:8px;">SkillReel</div>
-          <div style="font-size:13px;color:var(--text-muted);">スキルを、もっと身近に。</div>
+          <div class="login-title">SkillReel</div>
+          <div class="login-catch">スキルを、もっと身近に。</div>
         </div>
-        <button onclick="googleLogin()" style="
-          width:100%;height:44px;background:white;
-          border:1.5px solid var(--border);border-radius:var(--radius-md);
-          font-family:var(--font);font-size:14px;font-weight:600;
-          cursor:pointer;display:flex;align-items:center;
-          justify-content:center;gap:10px;margin-bottom:24px;">
+        <button class="btn-google" onclick="googleLogin()">
           <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18">
           Googleでログイン
         </button>
-        <div style="display:flex;align-items:center;gap:12px;
-          margin-bottom:16px;color:var(--text-muted);font-size:12px;">
-          <div style="flex:1;height:1px;background:var(--border);"></div>
-          開発用
-          <div style="flex:1;height:1px;background:var(--border);"></div>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button onclick="devLogin('staff')" style="
-            flex:1;height:40px;background:var(--primary-light);
-            color:var(--primary);border:none;border-radius:var(--radius-md);
-            font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;">
-            スタッフ
-          </button>
-          <button onclick="devLogin('manager')" style="
-            flex:1;height:40px;background:var(--accent-light);
-            color:var(--accent);border:none;border-radius:var(--radius-md);
-            font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;">
-            店長
-          </button>
-          <button onclick="devLogin('headquarters')" style="
-            flex:1;height:40px;background:var(--success-light);
-            color:var(--success);border:none;border-radius:var(--radius-md);
-            font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;">
-            本部
-          </button>
-        </div>
       </div>`;
   }
 }
@@ -1592,18 +1523,6 @@ function showInviteRequiredScreen() {
         店長から送られた招待リンクからアクセスしてください
       </div>
     </div>`;
-}
-
-function devLogin(role) {
-  currentUser = {
-    uid: 'dev_' + role,
-    name: role === 'staff' ? '田中春菜' : role === 'manager' ? '山田店長' : '本部太郎',
-    role: role,
-    companyId: 'company_001',
-    storeId: 'store_001',
-    storeName: '五反田店'
-  };
-  initApp(role);
 }
 
 function initApp(role) {
