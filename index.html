@@ -2450,17 +2450,24 @@ function renderManagerUpload(content) {
         </div>
         <div>
           <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">
-            動画ファイル <span style="color:var(--danger);">*</span>
+            YouTube URL <span style="color:var(--danger);">*</span>
           </label>
-          <input type="file" id="up-video" accept="video/*"
-            style="width:100%;padding:8px;border:1.5px solid var(--border);
-            border-radius:var(--radius-sm);font-family:var(--font);font-size:13px;">
+          <input id="up-video-url" type="url"
+            placeholder="https://www.youtube.com/watch?v=..."
+            style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
+            border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;outline:none;">
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
+            YouTube・YouTube Shorts どちらも対応
+          </div>
         </div>
         <div>
-          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">サムネイル画像</label>
-          <input type="file" id="up-thumb" accept="image/*"
-            style="width:100%;padding:8px;border:1.5px solid var(--border);
-            border-radius:var(--radius-sm);font-family:var(--font);font-size:13px;">
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">
+            サムネイル画像URL（任意）
+          </label>
+          <input id="up-thumb-url" type="url"
+            placeholder="https://... （空欄の場合はYouTubeから自動取得）"
+            style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
+            border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;outline:none;">
         </div>
         <button onclick="submitVideo()" style="
           padding:12px;background:var(--primary);color:white;border:none;
@@ -3647,19 +3654,23 @@ async function loadVideoForEdit(videoId) {
       </div>
       <div>
         <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">
-          新しいサムネイル（上書き）
+          YouTube URL（変更する場合）
         </label>
-        <input type="file" id="edit-thumb" accept="image/*" style="
-          width:100%;padding:8px;border:1.5px solid var(--border);
-          border-radius:var(--radius-sm);font-family:var(--font);font-size:13px;">
+        <input id="edit-video-url" type="url"
+          placeholder="https://www.youtube.com/watch?v=..."
+          value="${v.youtubeId ? 'https://www.youtube.com/watch?v=' + v.youtubeId : ''}"
+          style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
+          border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;outline:none;">
       </div>
       <div>
         <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">
-          新しい動画ファイル（上書き）
+          サムネイルURL（変更する場合）
         </label>
-        <input type="file" id="edit-video" accept="video/*" style="
-          width:100%;padding:8px;border:1.5px solid var(--border);
-          border-radius:var(--radius-sm);font-family:var(--font);font-size:13px;">
+        <input id="edit-thumb-url" type="url"
+          placeholder="https://..."
+          value="${v.thumbnailURL||''}"
+          style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
+          border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;outline:none;">
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;
         padding:12px;background:var(--bg);border-radius:var(--radius-sm);">
@@ -3701,8 +3712,8 @@ async function saveVideoEdit(videoId) {
   const desc = document.getElementById('edit-desc')?.value.trim();
   const published = document.getElementById('edit-published')?.checked;
   const notify = document.getElementById('edit-notify')?.checked;
-  const thumbFile = document.getElementById('edit-thumb')?.files?.[0];
-  const videoFile = document.getElementById('edit-video')?.files?.[0];
+  const newVideoUrl = document.getElementById('edit-video-url')?.value.trim();
+  const newThumbUrl = document.getElementById('edit-thumb-url')?.value.trim();
 
   if (!title) { showToast('タイトルを入力してください', 'error'); return; }
 
@@ -3713,17 +3724,29 @@ async function saveVideoEdit(videoId) {
     const updateData = { title, channel, genre, description: desc, published };
 
     const companyId = currentUser?.companyId || 'company_001';
-    if (thumbFile && window._uploadBytes) {
-      const tRef = window._ref(window._storage,
-        `thumbnails/${companyId}/${Date.now()}_${thumbFile.name}`);
-      const tSnap = await window._uploadBytes(tRef, thumbFile);
-      updateData.thumbnailURL = await window._getDownloadURL(tSnap.ref);
-    }
-    if (videoFile && window._uploadBytes) {
-      const vRef = window._ref(window._storage,
-        `videos/${companyId}/${Date.now()}_${videoFile.name}`);
-      const vSnap = await window._uploadBytes(vRef, videoFile);
-      updateData.videoURL = await window._getDownloadURL(vSnap.ref);
+    if (newVideoUrl) {
+      function extractYouTubeId(url) {
+        const patterns = [
+          /youtube\.com\/watch\?v=([^&]+)/,
+          /youtu\.be\/([^?]+)/,
+          /youtube\.com\/shorts\/([^?]+)/,
+          /youtube\.com\/embed\/([^?]+)/
+        ];
+        for (const p of patterns) {
+          const m = url.match(p);
+          if (m) return m[1];
+        }
+        return null;
+      }
+      const newYoutubeId = extractYouTubeId(newVideoUrl);
+      if (newYoutubeId) {
+        updateData.youtubeId = newYoutubeId;
+        updateData.videoURL = `https://www.youtube.com/embed/${newYoutubeId}?autoplay=1&loop=1&playlist=${newYoutubeId}&mute=1`;
+        updateData.thumbnailURL = newThumbUrl ||
+          `https://img.youtube.com/vi/${newYoutubeId}/hqdefault.jpg`;
+      }
+    } else if (newThumbUrl) {
+      updateData.thumbnailURL = newThumbUrl;
     }
 
     if (window._updateDoc && window._doc) {
@@ -4151,7 +4174,8 @@ function renderFeedSlides(videos) {
 
   slidesEl.innerHTML = videos.map((v, i) => {
     const bg = gradients[v.genre] || 'linear-gradient(180deg,#1E2A3A,#2563EB)';
-    const hasVideo = v.videoURL && v.videoURL.length > 0;
+    const hasVideo = v.videoURL && v.videoURL.includes('youtube.com/embed');
+    const youtubeId = v.youtubeId || '';
     const hasThumbnail = v.thumbnailURL && v.thumbnailURL.length > 0;
 
     return `
@@ -4160,10 +4184,15 @@ function renderFeedSlides(videos) {
         onclick="toggleFeedDetail('detail-${i}')">
 
         ${hasVideo ? `
-          <video src="${v.videoURL}" style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;"
-            playsinline loop muted autoplay></video>` :
+          <iframe
+            src="${v.videoURL}"
+            style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope"
+            allowfullscreen>
+          </iframe>` :
         hasThumbnail ? `
-          <img src="${v.thumbnailURL}" style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;">` :
+          <img src="${v.thumbnailURL}"
+            style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;">` :
         `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
           <i class="fa-solid fa-play" style="font-size:72px;color:rgba(255,255,255,0.3);"></i>
         </div>`}
@@ -4708,47 +4737,43 @@ async function submitVideo() {
   const genre = document.getElementById('up-genre')?.value;
   const desc = document.getElementById('up-desc')?.value.trim();
   const isOnboarding = document.getElementById('up-onboarding')?.checked || false;
-  const videoInput = document.getElementById('up-video');
-  const thumbInput = document.getElementById('up-thumb');
-  const videoFile = videoInput?.files?.[0];
-  const thumbFile = thumbInput?.files?.[0];
+  const videoUrl = document.getElementById('up-video-url')?.value.trim();
+  const thumbUrl = document.getElementById('up-thumb-url')?.value.trim();
 
   if (!title) { showToast('タイトルを入力してください', 'error'); return; }
-  if (!videoFile) { showToast('動画ファイルを選択してください', 'error'); return; }
+  if (!videoUrl) { showToast('YouTube URLを入力してください', 'error'); return; }
+
+  function extractYouTubeId(url) {
+    const patterns = [
+      /youtube\.com\/watch\?v=([^&]+)/,
+      /youtu\.be\/([^?]+)/,
+      /youtube\.com\/shorts\/([^?]+)/,
+      /youtube\.com\/embed\/([^?]+)/
+    ];
+    for (const p of patterns) {
+      const m = url.match(p);
+      if (m) return m[1];
+    }
+    return null;
+  }
+
+  const youtubeId = extractYouTubeId(videoUrl);
+  if (!youtubeId) {
+    showToast('有効なYouTube URLを入力してください', 'error');
+    return;
+  }
+
+  const thumbnailURL = thumbUrl ||
+    `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`;
+  const embedURL = `https://www.youtube.com/embed/${youtubeId}?autoplay=1&loop=1&playlist=${youtubeId}&mute=1`;
 
   const submitBtn = document.querySelector('[onclick="submitVideo()"]');
-  if (submitBtn) { submitBtn.textContent = 'アップロード中...'; submitBtn.disabled = true; }
+  if (submitBtn) { submitBtn.textContent = '投稿中...'; submitBtn.disabled = true; }
 
   try {
-    let videoURL = '';
-    let thumbnailURL = '';
+    const isHQ = currentUser?.role === 'headquarters';
     const companyId = currentUser?.companyId || 'company_001';
 
-    if (window._storage && window._ref && window._uploadBytes && window._getDownloadURL) {
-      showToast('動画をアップロード中...');
-      const vRef = window._ref(
-        window._storage,
-        `videos/${companyId}/${Date.now()}_${videoFile.name}`
-      );
-      const vSnap = await window._uploadBytes(vRef, videoFile);
-      videoURL = await window._getDownloadURL(vSnap.ref);
-
-      if (thumbFile) {
-        showToast('サムネイルをアップロード中...');
-        const tRef = window._ref(
-          window._storage,
-          `thumbnails/${companyId}/${Date.now()}_${thumbFile.name}`
-        );
-        const tSnap = await window._uploadBytes(tRef, thumbFile);
-        thumbnailURL = await window._getDownloadURL(tSnap.ref);
-      }
-    } else {
-      showToast('Firebase Storage未接続です', 'error');
-      if (submitBtn) { submitBtn.textContent = '投稿申請する'; submitBtn.disabled = false; }
-      return;
-    }
-
-    const isHQ = currentUser?.role === 'headquarters';
     const videoData = {
       title,
       channel: channel || 'common',
@@ -4756,7 +4781,8 @@ async function submitVideo() {
       description: desc || '',
       isOnboarding,
       type: isHQ ? 'official' : 'field',
-      videoURL,
+      videoURL: embedURL,
+      youtubeId,
       thumbnailURL,
       companyId,
       storeId: isHQ ? null : (currentUser?.storeId || 'store_001'),
@@ -4768,7 +4794,7 @@ async function submitVideo() {
       isOfficial: isHQ,
       published: isHQ,
       status: isHQ ? 'published' : 'pending',
-      createdAt: window._serverTimestamp()
+      createdAt: window._serverTimestamp ? window._serverTimestamp() : new Date()
     };
 
     if (window._addDoc && window._collection) {
@@ -4802,14 +4828,15 @@ async function submitVideo() {
       }
     }
 
-    showToast(isHQ ? '動画を公開しました ✅' : '申請しました。本部の確認をお待ちください ✅');
-    if (document.getElementById('up-title')) document.getElementById('up-title').value = '';
-    if (document.getElementById('up-desc')) document.getElementById('up-desc').value = '';
-    if (videoInput) videoInput.value = '';
-    if (thumbInput) thumbInput.value = '';
+    showToast(isHQ ? '動画を公開しました ✅' : '申請しました ✅');
+    document.getElementById('up-title').value = '';
+    document.getElementById('up-desc').value = '';
+    document.getElementById('up-video-url').value = '';
+    if (document.getElementById('up-thumb-url'))
+      document.getElementById('up-thumb-url').value = '';
 
   } catch(e) {
-    console.error('投稿エラー:', e);
+    console.error(e);
     showToast('投稿に失敗しました: ' + e.message, 'error');
   } finally {
     if (submitBtn) { submitBtn.textContent = '投稿申請する'; submitBtn.disabled = false; }
