@@ -2402,30 +2402,246 @@ function renderHQDashboard(content) {
     </button>`;
 }
 
-function renderHQVideos(content) {
+async function renderHQVideos(content) {
   content.innerHTML = `
-    <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
-      ${CHANNELS.map(c => `
-        <button style="padding:8px 16px;border-radius:999px;border:1px solid var(--border);
-          background:white;font-family:var(--font);font-size:13px;cursor:pointer;">
-          <i class="fa-solid ${c.icon}"></i> ${c.label}
-        </button>`).join('')}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        ${CHANNELS.map(c => `
+          <button onclick="filterHQVideos('${c.id}',this)" style="
+            padding:8px 16px;border-radius:999px;
+            border:1px solid var(--border);background:white;
+            font-family:var(--font);font-size:13px;cursor:pointer;">
+            <i class="fa-solid ${c.icon}"></i> ${c.label}
+          </button>`).join('')}
+        <button onclick="filterHQVideos('all',this)" style="
+          padding:8px 16px;border-radius:999px;
+          border:1px solid var(--primary);background:var(--primary);
+          color:white;font-family:var(--font);font-size:13px;cursor:pointer;">
+          すべて
+        </button>
+      </div>
     </div>
-    <div style="background:white;border-radius:var(--radius-md);padding:20px;box-shadow:var(--shadow-sm);">
-      <div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">
-        動画を追加してください
+    <div id="hq-video-list">
+      <div style="text-align:center;padding:40px;color:var(--text-muted);">
+        <i class="fa-solid fa-spinner fa-spin" style="font-size:24px;"></i>
       </div>
     </div>`;
+
+  await loadHQVideos('all');
 }
 
-function renderHQReview(content) {
+async function loadHQVideos(channel) {
+  const listEl = document.getElementById('hq-video-list');
+  if (!listEl) return;
+
+  let videos = [];
+  try {
+    if (window._getDocs && window._query) {
+      let constraints = [
+        window._where('companyId', '==', currentUser?.companyId || 'company_001')
+      ];
+      if (channel !== 'all') {
+        constraints.push(window._where('channel', '==', channel));
+      }
+      const q = window._query(
+        window._collection(window._db, 'videos'),
+        ...constraints
+      );
+      const snap = await window._getDocs(q);
+      snap.forEach(d => videos.push({ id: d.id, ...d.data() }));
+    }
+  } catch(e) {}
+
+  if (videos.length === 0) {
+    listEl.innerHTML = `
+      <div style="background:white;border-radius:var(--radius-md);padding:40px;
+        text-align:center;color:var(--text-muted);box-shadow:var(--shadow-sm);">
+        <i class="fa-solid fa-video" style="font-size:32px;margin-bottom:8px;display:block;"></i>
+        動画がありません
+      </div>`;
+    return;
+  }
+
+  const grouped = {};
+  videos.forEach(v => {
+    const key = v.channel || 'common';
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(v);
+  });
+
+  listEl.innerHTML = Object.entries(grouped).map(([ch, vids]) => {
+    const chInfo = CHANNELS.find(c => c.id === ch) || { label: ch, icon: 'fa-video' };
+    return `
+      <div style="margin-bottom:24px;">
+        <div style="font-size:15px;font-weight:700;margin-bottom:12px;">
+          <i class="fa-solid ${chInfo.icon}" style="color:var(--primary);margin-right:6px;"></i>
+          ${chInfo.label}（${vids.length}本）
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;">
+          ${vids.map(v => `
+            <div style="background:white;border-radius:var(--radius-md);
+              overflow:hidden;box-shadow:var(--shadow-sm);">
+              <div style="height:120px;background:linear-gradient(135deg,#1E2A3A,#2563EB);
+                display:flex;align-items:center;justify-content:center;position:relative;">
+                ${v.thumbnailURL ? `<img src="${v.thumbnailURL}"
+                  style="width:100%;height:100%;object-fit:cover;">` :
+                  `<i class="fa-solid fa-play" style="font-size:32px;color:rgba(255,255,255,0.5);"></i>`}
+                <span style="position:absolute;top:8px;left:8px;
+                  background:${v.published ? 'var(--success)' : 'var(--warning)'};
+                  color:white;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;">
+                  ${v.published ? '公開中' : '審査中'}
+                </span>
+              </div>
+              <div style="padding:12px;">
+                <div style="font-size:13px;font-weight:700;margin-bottom:4px;">${v.title}</div>
+                <div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;">
+                  ${v.genre||''} · ${v.uploaderName||''}
+                </div>
+                <div style="display:flex;gap:6px;">
+                  <button onclick="togglePublish('${v.id}',${!v.published})" style="
+                    flex:1;padding:6px;border:1px solid var(--border);
+                    border-radius:var(--radius-sm);background:white;
+                    font-family:var(--font);font-size:11px;cursor:pointer;">
+                    ${v.published ? '非公開にする' : '公開する'}
+                  </button>
+                </div>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function filterHQVideos(channel, btn) {
+  loadHQVideos(channel);
+}
+
+async function togglePublish(videoId, publish) {
+  try {
+    if (window._updateDoc && window._doc) {
+      await window._updateDoc(
+        window._doc(window._db, 'videos', videoId),
+        { published: publish }
+      );
+    }
+    showToast(publish ? '公開しました' : '非公開にしました');
+    loadHQVideos('all');
+  } catch(e) {
+    showToast('更新に失敗しました', 'error');
+  }
+}
+
+async function renderHQReview(content) {
   content.innerHTML = `
-    <div style="background:white;border-radius:var(--radius-md);padding:20px;box-shadow:var(--shadow-sm);">
-      <div style="font-size:15px;font-weight:700;margin-bottom:16px;">投稿申請一覧</div>
-      <div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">
-        審査待ちの動画はありません
+    <div style="font-size:18px;font-weight:700;margin-bottom:16px;">投稿申請一覧</div>
+    <div id="review-list">
+      <div style="text-align:center;padding:20px;color:var(--text-muted);">
+        <i class="fa-solid fa-spinner fa-spin"></i>
       </div>
     </div>`;
+
+  let pending = [];
+  try {
+    if (window._getDocs && window._query) {
+      const q = window._query(
+        window._collection(window._db, 'videos'),
+        window._where('companyId', '==', currentUser?.companyId || 'company_001'),
+        window._where('status', '==', 'pending')
+      );
+      const snap = await window._getDocs(q);
+      snap.forEach(d => pending.push({ id: d.id, ...d.data() }));
+    }
+  } catch(e) {}
+
+  const listEl = document.getElementById('review-list');
+  if (!listEl) return;
+
+  if (pending.length === 0) {
+    listEl.innerHTML = `
+      <div style="background:white;border-radius:var(--radius-md);padding:40px;
+        text-align:center;color:var(--text-muted);box-shadow:var(--shadow-sm);">
+        審査待ちの動画はありません
+      </div>`;
+    return;
+  }
+
+  listEl.innerHTML = pending.map(v => `
+    <div style="background:white;border-radius:var(--radius-md);padding:16px;
+      margin-bottom:12px;box-shadow:var(--shadow-sm);">
+      <div style="display:flex;gap:12px;margin-bottom:12px;">
+        <div style="width:80px;height:60px;background:linear-gradient(135deg,#1E2A3A,#2563EB);
+          border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          ${v.thumbnailURL
+            ? `<img src="${v.thumbnailURL}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">`
+            : `<i class="fa-solid fa-play" style="color:rgba(255,255,255,0.5);"></i>`}
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:700;margin-bottom:4px;">${v.title}</div>
+          <div style="font-size:12px;color:var(--text-secondary);">
+            ${v.storeName||''} · ${v.uploaderName||''} · ${v.genre||''}
+          </div>
+        </div>
+      </div>
+      ${v.videoURL ? `
+        <video src="${v.videoURL}" controls style="
+          width:100%;border-radius:var(--radius-sm);
+          max-height:200px;background:#000;margin-bottom:12px;">
+        </video>` : ''}
+      <div style="display:flex;gap:8px;">
+        <button onclick="approveVideo('${v.id}')" style="
+          flex:1;padding:10px;background:var(--success);color:white;
+          border:none;border-radius:var(--radius-sm);font-family:var(--font);
+          font-size:13px;font-weight:700;cursor:pointer;">
+          <i class="fa-solid fa-check"></i> 承認して公開
+        </button>
+        <button onclick="rejectVideo('${v.id}')" style="
+          flex:1;padding:10px;background:white;color:var(--danger);
+          border:1px solid var(--danger);border-radius:var(--radius-sm);
+          font-family:var(--font);font-size:13px;cursor:pointer;">
+          <i class="fa-solid fa-times"></i> 差し戻し
+        </button>
+      </div>
+    </div>`).join('');
+}
+
+async function approveVideo(videoId) {
+  try {
+    if (window._updateDoc && window._doc) {
+      await window._updateDoc(
+        window._doc(window._db, 'videos', videoId),
+        {
+          published: true,
+          status: 'published',
+          approvedBy: currentUser?.uid,
+          approvedAt: window._serverTimestamp()
+        }
+      );
+    }
+    showToast('承認して公開しました ✅');
+    renderHQReview(document.getElementById('main-content'));
+  } catch(e) {
+    showToast('承認に失敗しました', 'error');
+  }
+}
+
+async function rejectVideo(videoId) {
+  try {
+    if (window._updateDoc && window._doc) {
+      await window._updateDoc(
+        window._doc(window._db, 'videos', videoId),
+        {
+          published: false,
+          status: 'rejected',
+          rejectedBy: currentUser?.uid,
+          rejectedAt: window._serverTimestamp()
+        }
+      );
+    }
+    showToast('差し戻しました');
+    renderHQReview(document.getElementById('main-content'));
+  } catch(e) {
+    showToast('差し戻しに失敗しました', 'error');
+  }
 }
 
 function renderHQStaff(content) {
@@ -2771,7 +2987,102 @@ async function generateInvite(role) {
     }
   }
 }
-function submitVideo() { showToast('Firebase連携後に有効になります'); }
+async function submitVideo() {
+  const title = document.getElementById('up-title')?.value.trim();
+  const channel = document.getElementById('up-channel')?.value;
+  const genre = document.getElementById('up-genre')?.value;
+  const desc = document.getElementById('up-desc')?.value.trim();
+  const isOnboarding = document.getElementById('up-onboarding')?.checked;
+  const videoFile = document.getElementById('up-video')?.files[0];
+  const thumbFile = document.getElementById('up-thumb')?.files[0];
+
+  if (!title) { showToast('タイトルを入力してください', 'error'); return; }
+  if (!videoFile) { showToast('動画ファイルを選択してください', 'error'); return; }
+
+  const btn = document.querySelector('button[onclick="submitVideo()"]');
+  if (btn) { btn.textContent = 'アップロード中...'; btn.disabled = true; }
+
+  try {
+    let videoURL = '';
+    let thumbnailURL = '';
+    const companyId = currentUser?.companyId || 'company_001';
+
+    if (window._uploadBytes && window._ref && window._getDownloadURL) {
+      const vRef = window._ref(
+        window._storage,
+        `videos/${companyId}/${Date.now()}_${videoFile.name}`
+      );
+      await window._uploadBytes(vRef, videoFile);
+      videoURL = await window._getDownloadURL(vRef);
+
+      if (thumbFile) {
+        const tRef = window._ref(
+          window._storage,
+          `thumbnails/${companyId}/${Date.now()}_${thumbFile.name}`
+        );
+        await window._uploadBytes(tRef, thumbFile);
+        thumbnailURL = await window._getDownloadURL(tRef);
+      }
+    }
+
+    const isHQ = currentUser?.role === 'headquarters';
+    const videoData = {
+      title,
+      channel,
+      genre,
+      description: desc,
+      isOnboarding,
+      type: isHQ ? 'official' : 'field',
+      videoURL,
+      thumbnailURL,
+      companyId,
+      storeId: isHQ ? null : (currentUser?.storeId || 'store_001'),
+      storeName: isHQ ? '本部' : (currentUser?.storeName || ''),
+      uploadedBy: currentUser?.uid || '',
+      uploaderName: currentUser?.name || '',
+      likes: 0,
+      views: 0,
+      isOfficial: isHQ,
+      published: isHQ,
+      status: isHQ ? 'published' : 'pending',
+      createdAt: window._serverTimestamp
+        ? window._serverTimestamp() : new Date().toISOString()
+    };
+
+    if (window._addDoc && window._collection) {
+      await window._addDoc(
+        window._collection(window._db, 'videos'),
+        videoData
+      );
+
+      if (!isHQ && window._addDoc) {
+        await window._addDoc(
+          window._collection(window._db, 'notifications'), {
+            type: 'video_request',
+            message: `${currentUser?.storeName||''}から動画申請：「${title}」`,
+            companyId,
+            targetRole: 'headquarters',
+            read: false,
+            createdAt: window._serverTimestamp()
+          }
+        );
+      }
+    }
+
+    showToast(isHQ ? '動画を公開しました ✅' : '申請しました。本部の確認をお待ちください ✅');
+
+    document.getElementById('up-title').value = '';
+    document.getElementById('up-desc').value = '';
+    document.getElementById('up-video').value = '';
+    if (document.getElementById('up-thumb'))
+      document.getElementById('up-thumb').value = '';
+
+  } catch(e) {
+    showToast('投稿に失敗しました: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.textContent = '投稿申請する'; btn.disabled = false; }
+  }
+}
 async function registerDummyData() {
   if (!window._addDoc || !window._collection) {
     showToast('Firebase未接続です', 'error');
