@@ -1418,10 +1418,38 @@
        レスポンシブ
     ============================================= */
     @media (max-width: 768px) {
-      #sidebar { display: none; }
-      .kpi-grid { grid-template-columns: 1fr 1fr; }
+      #sidebar {
+        position: fixed;
+        left: -240px;
+        top: 0;
+        height: 100vh;
+        width: 240px;
+        z-index: 200;
+        transition: left 0.3s ease;
+      }
+      #sidebar.open {
+        left: 0;
+      }
+      #sidebar-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: rgba(0,0,0,0.4);
+        z-index: 199;
+      }
+      #sidebar-overlay.show { display: block; }
+      #app-body { width: 100%; }
+      #header { padding: 0 16px; }
+      #main-content { padding: 16px; }
+      .hamburger-btn { display: flex !important; }
+      .kpi-grid { grid-template-columns: repeat(2, 1fr) !important; }
+      .two-col-grid { grid-template-columns: 1fr !important; }
       .modal { max-width: 100%; margin: 0; border-radius: var(--radius-xl) var(--radius-xl) 0 0; align-self: flex-end; }
       .modal-overlay { align-items: flex-end; padding: 0; }
+    }
+    @media (min-width: 769px) {
+      .hamburger-btn { display: none !important; }
     }
   </style>
 </head>
@@ -2026,6 +2054,7 @@ function showSavedVideos(type) {
 
 function setupManagerLayout() {
   document.getElementById('app-screen').innerHTML = `
+    <div id="sidebar-overlay" onclick="closeSidebar()"></div>
     <div style="display:flex;height:100vh;">
       <div id="sidebar" style="width:220px;background:var(--sidebar-bg);
         display:flex;flex-direction:column;flex-shrink:0;">
@@ -2064,7 +2093,14 @@ function setupManagerLayout() {
       <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
         <div style="height:56px;background:white;border-bottom:1px solid var(--border);
           display:flex;align-items:center;padding:0 24px;justify-content:space-between;">
-          <span id="page-title" style="font-size:16px;font-weight:700;"></span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button class="hamburger-btn" onclick="toggleSidebar()" style="
+              display:none;background:none;border:none;cursor:pointer;
+              font-size:20px;color:var(--text-secondary);padding:4px;margin-right:4px;">
+              <i class="fa-solid fa-bars"></i>
+            </button>
+            <span id="page-title" style="font-size:16px;font-weight:700;"></span>
+          </div>
           <div style="display:flex;align-items:center;gap:12px;">
             <span style="font-size:13px;color:var(--text-secondary);">
               ${currentUser?.storeName || ''}の管理画面
@@ -2083,6 +2119,7 @@ function setupManagerLayout() {
 }
 
 function navigateManager(page) {
+  closeSidebar();
   currentPage = page;
   document.querySelectorAll('[id^="nav-"]').forEach(n => {
     n.style.background = 'none';
@@ -2761,6 +2798,7 @@ function renderManagerInvite(content) {
 
 function setupHQLayout() {
   document.getElementById('app-screen').innerHTML = `
+    <div id="sidebar-overlay" onclick="closeSidebar()"></div>
     <div style="display:flex;height:100vh;">
       <div id="sidebar" style="width:220px;background:var(--sidebar-bg);
         display:flex;flex-direction:column;flex-shrink:0;">
@@ -2772,7 +2810,6 @@ function setupHQLayout() {
           ${[
             ['dashboard','fa-th-large','ダッシュボード'],
             ['videos','fa-video','動画管理'],
-            ['review','fa-inbox','審査'],
             ['staff','fa-users','全社スタッフ'],
             ['invite','fa-user-plus','招待'],
             ['settings','fa-cog','設定'],
@@ -2796,7 +2833,14 @@ function setupHQLayout() {
       <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
         <div style="height:56px;background:white;border-bottom:1px solid var(--border);
           display:flex;align-items:center;padding:0 24px;justify-content:space-between;">
-          <span id="hq-page-title" style="font-size:16px;font-weight:700;"></span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button class="hamburger-btn" onclick="toggleSidebar()" style="
+              display:none;background:none;border:none;cursor:pointer;
+              font-size:20px;color:var(--text-secondary);padding:4px;margin-right:4px;">
+              <i class="fa-solid fa-bars"></i>
+            </button>
+            <span id="hq-page-title" style="font-size:16px;font-weight:700;"></span>
+          </div>
           <button onclick="openNotificationDrawer()" style="
             background:none;border:none;cursor:pointer;font-size:20px;
             color:var(--text-secondary);">
@@ -2822,17 +2866,16 @@ function navigateHQ(page) {
     active.style.color = 'white';
     active.style.borderLeft = '3px solid var(--primary)';
   }
+  closeSidebar();
   const titles = {
     dashboard:'ダッシュボード', videos:'動画管理',
-    review:'審査', staff:'全社スタッフ',
-    invite:'招待', settings:'設定'
+    staff:'全社スタッフ', invite:'招待', settings:'設定'
   };
   const titleEl = document.getElementById('hq-page-title');
   if (titleEl) titleEl.textContent = titles[page] || '';
   const content = document.getElementById('main-content');
   if (page === 'dashboard') renderHQDashboard(content);
   else if (page === 'videos') renderHQVideos(content);
-  else if (page === 'review') renderHQReview(content);
   else if (page === 'staff') renderHQStaff(content);
   else if (page === 'invite') renderHQInvite(content);
   else if (page === 'settings') renderHQSettings(content);
@@ -2840,7 +2883,7 @@ function navigateHQ(page) {
 
 async function renderHQDashboard(content) {
   content.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);
+    <div class="kpi-grid" style="display:grid;grid-template-columns:repeat(5,1fr);
       gap:16px;margin-bottom:24px;">
       ${[
         ['fa-users','総スタッフ数','--名','var(--primary)','staff-count'],
@@ -2859,7 +2902,7 @@ async function renderHQDashboard(content) {
         </div>`).join('')}
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+    <div class="two-col-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
 
       <div style="background:white;border-radius:var(--radius-md);
         padding:20px;box-shadow:var(--shadow-sm);">
@@ -3753,72 +3796,47 @@ function renderFeedSlides(videos) {
           <i class="fa-solid fa-play" style="font-size:80px;color:white;"></i>
         </div>
 
-        <div style="position:absolute;right:12px;bottom:120px;
-          display:flex;flex-direction:column;gap:20px;align-items:center;">
-          <button onclick="event.stopPropagation();likeVideo('${v.id}',this)"
-            style="background:none;border:none;cursor:pointer;
-            display:flex;flex-direction:column;align-items:center;gap:4px;">
-            <i class="fa-solid fa-heart" style="font-size:28px;color:white;"></i>
-            <span style="color:white;font-size:11px;">${v.likes||0}</span>
-          </button>
-          <button onclick="event.stopPropagation();"
-            style="background:none;border:none;cursor:pointer;
-            display:flex;flex-direction:column;align-items:center;gap:4px;">
-            <i class="fa-solid fa-bookmark" style="font-size:26px;color:white;"></i>
-            <span style="color:white;font-size:11px;">保存</span>
-          </button>
-          <button onclick="event.stopPropagation();openFeedbackModal('${v.id}','${v.title?.replace(/'/g,'')}')"
-            style="background:none;border:none;cursor:pointer;
-            display:flex;flex-direction:column;align-items:center;gap:4px;">
-            <i class="fa-solid fa-comment-dots" style="font-size:24px;color:white;"></i>
-            <span style="color:white;font-size:11px;">もっと知りたい</span>
-          </button>
-        </div>
-
-        <div style="position:absolute;bottom:80px;left:12px;right:64px;pointer-events:none;">
-          <div style="display:flex;gap:6px;margin-bottom:6px;">
-            ${v.isOfficial ? `<span style="background:var(--primary);color:white;
-              padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;">公式</span>` : ''}
-            ${v.isOnboarding ? `<span style="background:var(--success);color:white;
-              padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;">新人教育</span>` : ''}
-            ${!v.isOfficial ? `<span style="background:var(--accent);color:white;
-              padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;">現場ナレッジ</span>` : ''}
+        <div style="position:absolute;bottom:70px;left:0;right:0;
+          padding:0 12px;z-index:15;pointer-events:none;">
+          <div style="pointer-events:none;margin-bottom:8px;">
+            <div style="display:flex;gap:6px;margin-bottom:4px;">
+              ${v.isOfficial ? '<span style="background:var(--primary);color:white;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;">公式</span>' : ''}
+              ${v.isOnboarding ? '<span style="background:var(--success);color:white;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;">新人教育</span>' : ''}
+              ${!v.isOfficial ? '<span style="background:var(--accent);color:white;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;">現場ナレッジ</span>' : ''}
+            </div>
+            <div style="color:white;font-size:15px;font-weight:700;
+              text-shadow:0 1px 4px rgba(0,0,0,0.6);margin-bottom:2px;">
+              ${v.title}
+            </div>
+            <div style="color:rgba(255,255,255,0.7);font-size:12px;
+              text-shadow:0 1px 3px rgba(0,0,0,0.5);">
+              ${v.uploaderName||''}
+            </div>
           </div>
-          <div style="color:white;font-size:16px;font-weight:700;
-            text-shadow:0 1px 4px rgba(0,0,0,0.5);margin-bottom:4px;">
-            ${v.title}
-          </div>
-          <div style="color:rgba(255,255,255,0.8);font-size:12px;">${v.uploaderName||''}</div>
-        </div>
-
-        <div id="detail-${i}" style="
-          position:absolute;bottom:0;left:0;right:0;
-          background:rgba(15,23,42,0.92);backdrop-filter:blur(8px);
-          border-radius:16px 16px 0 0;padding:20px 16px 90px;
-          transform:translateY(100%);transition:transform 0.3s ease;z-index:20;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-            <span style="background:var(--primary);color:white;padding:3px 10px;
-              border-radius:999px;font-size:12px;font-weight:600;">${v.genre||''}</span>
-            <button onclick="event.stopPropagation();toggleFeedDetail('detail-${i}')"
-              style="background:rgba(255,255,255,0.15);border:none;color:white;
-              border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:14px;">
-              <i class="fa-solid fa-times"></i>
-            </button>
-          </div>
-          <div style="color:white;font-size:18px;font-weight:700;margin-bottom:8px;">${v.title}</div>
-          <div style="color:rgba(255,255,255,0.7);font-size:13px;margin-bottom:16px;">${v.description||''}</div>
-          <div style="display:flex;gap:10px;">
-            <button onclick="event.stopPropagation();markWatched('${v.id}')"
-              style="flex:1;padding:12px;background:var(--success);color:white;
+          <div style="display:flex;gap:8px;pointer-events:auto;">
+            <button onclick="event.stopPropagation();markWatched('${v.id}')" style="
+              flex:1;padding:10px;background:var(--success);color:white;
               border:none;border-radius:var(--radius-sm);font-family:var(--font);
-              font-size:14px;font-weight:600;cursor:pointer;">
+              font-size:13px;font-weight:700;cursor:pointer;
+              box-shadow:0 2px 8px rgba(0,0,0,0.3);">
               <i class="fa-solid fa-check"></i> 理解できた
             </button>
-            <button onclick="event.stopPropagation();toggleFeedDetail('detail-${i}')"
-              style="padding:12px 16px;background:rgba(255,255,255,0.15);
-              color:white;border:none;border-radius:var(--radius-sm);
-              font-family:var(--font);font-size:14px;cursor:pointer;">
-              もう一度
+            <button onclick="event.stopPropagation();openFeedbackModal('${v.id}','${(v.title||'').replace(/'/g,'')}')" style="
+              padding:10px 14px;background:rgba(255,255,255,0.2);
+              backdrop-filter:blur(4px);color:white;border:none;
+              border-radius:var(--radius-sm);font-family:var(--font);
+              font-size:12px;cursor:pointer;
+              box-shadow:0 2px 8px rgba(0,0,0,0.2);">
+              <i class="fa-solid fa-comment-dots"></i>
+            </button>
+            <button onclick="event.stopPropagation();likeVideo('${v.id}',this)" style="
+              padding:10px 14px;background:rgba(255,255,255,0.2);
+              backdrop-filter:blur(4px);color:white;border:none;
+              border-radius:var(--radius-sm);font-family:var(--font);
+              font-size:12px;cursor:pointer;
+              box-shadow:0 2px 8px rgba(0,0,0,0.2);">
+              <i class="fa-solid fa-heart"></i>
+              <span style="margin-left:4px;">${v.likes||0}</span>
             </button>
           </div>
         </div>
@@ -4112,6 +4130,25 @@ async function sendVideoFeedback(videoId, videoTitle) {
   } catch(e) {
     showToast('送信に失敗しました', 'error');
   }
+}
+
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  if (!sidebar) return;
+  const isOpen = sidebar.classList.contains('open');
+  if (isOpen) {
+    sidebar.classList.remove('open');
+    overlay?.classList.remove('show');
+  } else {
+    sidebar.classList.add('open');
+    overlay?.classList.add('show');
+  }
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar')?.classList.remove('open');
+  document.getElementById('sidebar-overlay')?.classList.remove('show');
 }
 
 function changeLang(lang) { currentLang = lang; }
