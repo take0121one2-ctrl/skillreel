@@ -2336,7 +2336,7 @@ async function loadManagerDashboardData() {
       }
     }
   } catch(e) {
-    console.error(e);
+
   }
 }
 
@@ -3432,14 +3432,7 @@ async function renderHQDashboard(content) {
         </div>
       </div>
 
-    </div>
-
-    <button onclick="registerDummyData(event)" style="
-      padding:10px 20px;background:var(--bg);
-      border:1px solid var(--border);border-radius:var(--radius-sm);
-      font-family:var(--font);font-size:13px;cursor:pointer;">
-      🔧 開発用：初期データを登録する
-    </button>`;
+    </div>`;
 
   loadHQDashboardData();
 }
@@ -3539,7 +3532,7 @@ async function loadHQDashboardData() {
       }
     }
   } catch(e) {
-    console.error(e);
+
   }
 }
 
@@ -3776,7 +3769,7 @@ async function loadVideoForEdit(videoId) {
         </label>
         <input id="edit-video-url" type="url"
           placeholder="https://www.youtube.com/watch?v=..."
-          value="${v.youtubeId ? 'https://www.youtube.com/watch?v=' + v.youtubeId : ''}"
+          value="${video.youtubeId ? 'https://www.youtube.com/watch?v=' + video.youtubeId : ''}"
           style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
           border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;outline:none;">
       </div>
@@ -3786,7 +3779,7 @@ async function loadVideoForEdit(videoId) {
         </label>
         <input id="edit-thumb-url" type="url"
           placeholder="https://..."
-          value="${v.thumbnailURL||''}"
+          value="${video.thumbnailURL||''}"
           style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
           border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;outline:none;">
       </div>
@@ -4220,47 +4213,14 @@ async function loadFeedVideos() {
       });
     }
 
-    if (videos.length === 0) {
-      videos = getDummyVideos().filter(v => v.channel === currentChannel);
-    }
-
     allFeedVideos = videos;
     if (loadingEl) loadingEl.style.display = 'none';
     renderFeedSlides(videos);
 
   } catch(e) {
-    console.error(e);
-    const videos = getDummyVideos().filter(v => v.channel === currentChannel);
-    allFeedVideos = videos;
     if (loadingEl) loadingEl.style.display = 'none';
-    renderFeedSlides(videos);
+    renderFeedSlides([]);
   }
-}
-
-function getDummyVideos() {
-  return [
-    { id:'d1', title:'ねぎまの仕込み', genre:'仕込み', channel:'common',
-      isOnboarding:false, type:'official', companyId:'company_001',
-      uploaderName:'本部', likes:12, views:48, isOfficial:true,
-      videoURL:'', thumbnailURL:'', description:'串打ちから焼き上げまでの基本手順' },
-    { id:'d2', title:'レモンサワーの作り方', genre:'ドリンク', channel:'common',
-      isOnboarding:false, type:'official', companyId:'company_001',
-      uploaderName:'本部', likes:24, views:67, isOfficial:true,
-      videoURL:'', thumbnailURL:'', description:'黄金比レシピ' },
-    { id:'d3', title:'席案内の流れ', genre:'ホール', channel:'common',
-      isOnboarding:true, type:'official', companyId:'company_001',
-      uploaderName:'本部', likes:31, views:89, isOfficial:true,
-      videoURL:'', thumbnailURL:'', description:'新人必見：お客様を席まで案内する一連の動作' },
-    { id:'d4', title:'洗い場の回し方', genre:'ノウハウ', channel:'store',
-      isOnboarding:false, type:'field', companyId:'company_001',
-      storeId:'store_001', storeName:'五反田店',
-      uploaderName:'山田店長', likes:8, views:21, isOfficial:false,
-      videoURL:'', thumbnailURL:'', description:'ピーク時の洗い場ナレッジ' },
-    { id:'d5', title:'今月のキャンペーン', genre:'広報', channel:'pr',
-      isOnboarding:false, type:'official', companyId:'company_001',
-      uploaderName:'本部', likes:5, views:32, isOfficial:true,
-      videoURL:'', thumbnailURL:'', description:'3月の季節限定メニューキャンペーン' }
-  ];
 }
 
 function renderFeedSlides(videos) {
@@ -4415,7 +4375,8 @@ function switchChannel(channelId) {
 
 async function likeVideo(videoId, btn) {
   try {
-    const uid = currentUser?.uid || 'dev_staff';
+    const uid = currentUser?.uid || '';
+    if (!uid) { showToast('ログインが必要です', 'error'); return; }
     const companyId = currentUser?.companyId || 'company_001';
 
     if (window._addDoc && window._collection) {
@@ -4525,7 +4486,8 @@ async function markWatched(videoId) {
 
 async function saveVideo(videoId, videoTitle) {
   try {
-    const uid = currentUser?.uid || 'dev_staff';
+    const uid = currentUser?.uid || '';
+    if (!uid) { showToast('ログインが必要です', 'error'); return; }
     const companyId = currentUser?.companyId || 'company_001';
 
     if (window._addDoc && window._collection) {
@@ -4954,64 +4916,10 @@ async function submitVideo() {
       document.getElementById('up-thumb-url').value = '';
 
   } catch(e) {
-    console.error(e);
+
     showToast('投稿に失敗しました: ' + e.message, 'error');
   } finally {
     if (submitBtn) { submitBtn.textContent = '投稿申請する'; submitBtn.disabled = false; }
-  }
-}
-async function registerDummyData(event) {
-  if (!window._addDoc || !window._collection) {
-    showToast('Firebase未接続です', 'error');
-    return;
-  }
-  const btn = event?.target;
-  if (btn) { btn.disabled = true; btn.textContent = '登録中...'; }
-  const dummyVideos = [
-    { title:'ねぎまの仕込み', genre:'仕込み', channel:'common',
-      isOnboarding:false, type:'official', companyId:'company_001',
-      uploaderName:'本部', likes:12, views:48, isOfficial:true,
-      published:true, status:'published', videoURL:'', thumbnailURL:'',
-      description:'串打ちから焼き上げまでの基本手順' },
-    { title:'レモンサワーの作り方', genre:'ドリンク', channel:'common',
-      isOnboarding:false, type:'official', companyId:'company_001',
-      uploaderName:'本部', likes:24, views:67, isOfficial:true,
-      published:true, status:'published', videoURL:'', thumbnailURL:'',
-      description:'黄金比レシピ' },
-    { title:'席案内の流れ', genre:'ホール', channel:'common',
-      isOnboarding:true, type:'official', companyId:'company_001',
-      uploaderName:'本部', likes:31, views:89, isOfficial:true,
-      published:true, status:'published', videoURL:'', thumbnailURL:'',
-      description:'新人必見：お客様を席まで案内する一連の動作' },
-    { title:'接客の基本マナー', genre:'新人教育', channel:'common',
-      isOnboarding:true, type:'official', companyId:'company_001',
-      uploaderName:'本部', likes:18, views:54, isOfficial:true,
-      published:true, status:'published', videoURL:'', thumbnailURL:'',
-      description:'新人必見：挨拶・言葉遣い・身だしなみ' },
-    { title:'洗い場の効率的な回し方', genre:'ノウハウ', channel:'store',
-      isOnboarding:false, type:'field', companyId:'company_001',
-      storeId:'store_001', storeName:'五反田店',
-      uploaderName:'山田店長', likes:8, views:21, isOfficial:false,
-      published:true, status:'published', videoURL:'', thumbnailURL:'',
-      description:'ピーク時の洗い場ナレッジ' },
-    { title:'今月のキャンペーンのご案内', genre:'広報', channel:'pr',
-      isOnboarding:false, type:'official', companyId:'company_001',
-      uploaderName:'本部', likes:5, views:32, isOfficial:true,
-      published:true, status:'published', videoURL:'', thumbnailURL:'',
-      description:'3月の季節限定メニューキャンペーン' }
-  ];
-  try {
-    for (const v of dummyVideos) {
-      await window._addDoc(
-        window._collection(window._db, 'videos'),
-        { ...v, createdAt: window._serverTimestamp() }
-      );
-    }
-    showToast('初期データを登録しました ✅');
-    if (btn) { btn.textContent = '✅ 登録完了'; }
-  } catch(e) {
-    showToast('登録に失敗しました: ' + e.message, 'error');
-    if (btn) { btn.disabled = false; btn.textContent = '🔧 開発用：初期データを登録する'; }
   }
 }
 function logout() { location.reload(); }
@@ -5145,7 +5053,7 @@ onAuthStateChanged(auth, async (firebaseUser) => {
       }
     }
   } catch(e) {
-    console.error(e);
+
     showLoginScreen();
   }
 });
