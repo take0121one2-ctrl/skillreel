@@ -2154,12 +2154,238 @@ function filterFeed() {}
 function filterGenre(genre) {}
 function toggleNotifications() {}
 function changeLang(lang) { currentLang = lang; }
-function generateInvite(role) {}
+async function generateInvite(role) {
+  if (!currentUser) return;
+  const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  const inviteRole = role || 'staff';
+  try {
+    await window._setDoc(window._doc(window._db, "invites", token), {
+      token,
+      role: inviteRole,
+      companyId: currentUser.companyId || 'company_001',
+      storeId: currentUser.storeId || 'store_001',
+      storeName: currentUser.storeName || '',
+      createdBy: currentUser.uid,
+      used: false,
+      createdAt: window._serverTimestamp()
+    });
+    const url = `${location.origin}${location.pathname}?invite=${token}`;
+    const resultEl = document.getElementById('invite-result');
+    if (resultEl) {
+      resultEl.innerHTML = `
+        <div style="background:var(--primary-light);border-radius:var(--radius-md);
+          padding:16px;margin-top:12px;">
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">
+            招待リンク（${inviteRole === 'manager' ? '店長用' : 'スタッフ用'}）
+          </div>
+          <div style="font-size:12px;word-break:break-all;color:var(--primary);
+            margin-bottom:12px;">${url}</div>
+          <button onclick="navigator.clipboard.writeText('${url}').then(()=>showToast('コピーしました'))"
+            style="padding:8px 16px;background:var(--primary);color:white;border:none;
+            border-radius:var(--radius-sm);font-family:var(--font);font-size:13px;cursor:pointer;">
+            <i class="fa-solid fa-copy"></i> コピー
+          </button>
+        </div>`;
+    }
+    showToast('招待リンクを発行しました');
+  } catch(e) {
+    showToast('Firebase未接続のため開発用URLを表示します', 'error');
+    const url = `${location.origin}${location.pathname}?invite=${token}`;
+    const resultEl = document.getElementById('invite-result');
+    if (resultEl) {
+      resultEl.innerHTML = `
+        <div style="background:var(--primary-light);border-radius:var(--radius-md);padding:16px;margin-top:12px;">
+          <div style="font-size:12px;word-break:break-all;color:var(--primary);">${url}</div>
+        </div>`;
+    }
+  }
+}
 function submitVideo() { showToast('Firebase連携後に有効になります'); }
-function registerDummyData() { showToast('Firebase連携後に有効になります'); }
+async function registerDummyData() {
+  if (!window._addDoc || !window._collection) {
+    showToast('Firebase未接続です', 'error');
+    return;
+  }
+  const dummyVideos = [
+    { title:'ねぎまの仕込み', genre:'仕込み', channel:'common',
+      isOnboarding:false, type:'official', companyId:'company_001',
+      uploaderName:'本部', likes:12, views:48, isOfficial:true,
+      published:true, status:'published', videoURL:'', thumbnailURL:'',
+      description:'串打ちから焼き上げまでの基本手順' },
+    { title:'レモンサワーの作り方', genre:'ドリンク', channel:'common',
+      isOnboarding:false, type:'official', companyId:'company_001',
+      uploaderName:'本部', likes:24, views:67, isOfficial:true,
+      published:true, status:'published', videoURL:'', thumbnailURL:'',
+      description:'黄金比レシピ' },
+    { title:'席案内の流れ', genre:'ホール', channel:'common',
+      isOnboarding:true, type:'official', companyId:'company_001',
+      uploaderName:'本部', likes:31, views:89, isOfficial:true,
+      published:true, status:'published', videoURL:'', thumbnailURL:'',
+      description:'新人必見：お客様を席まで案内する一連の動作' },
+    { title:'接客の基本マナー', genre:'新人教育', channel:'common',
+      isOnboarding:true, type:'official', companyId:'company_001',
+      uploaderName:'本部', likes:18, views:54, isOfficial:true,
+      published:true, status:'published', videoURL:'', thumbnailURL:'',
+      description:'新人必見：挨拶・言葉遣い・身だしなみ' },
+    { title:'洗い場の効率的な回し方', genre:'ノウハウ', channel:'store',
+      isOnboarding:false, type:'field', companyId:'company_001',
+      storeId:'store_001', storeName:'五反田店',
+      uploaderName:'山田店長', likes:8, views:21, isOfficial:false,
+      published:true, status:'published', videoURL:'', thumbnailURL:'',
+      description:'ピーク時の洗い場ナレッジ' },
+    { title:'今月のキャンペーンのご案内', genre:'広報', channel:'pr',
+      isOnboarding:false, type:'official', companyId:'company_001',
+      uploaderName:'本部', likes:5, views:32, isOfficial:true,
+      published:true, status:'published', videoURL:'', thumbnailURL:'',
+      description:'3月の季節限定メニューキャンペーン' }
+  ];
+  try {
+    for (const v of dummyVideos) {
+      await window._addDoc(
+        window._collection(window._db, 'videos'),
+        { ...v, createdAt: window._serverTimestamp() }
+      );
+    }
+    showToast('初期データを登録しました ✅');
+  } catch(e) {
+    showToast('登録に失敗しました: ' + e.message, 'error');
+  }
+}
 function logout() { location.reload(); }
 
 showLoginScreen();
+</script>
+
+<script type="module">
+import { initializeApp }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, GoogleAuthProvider,
+  signInWithPopup, onAuthStateChanged, signOut }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, addDoc,
+  updateDoc, collection, query, where, orderBy,
+  getDocs, onSnapshot, serverTimestamp, increment }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getStorage, ref, uploadBytes, getDownloadURL }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAgd3NUGdTIosjPQ5Qu2bljEfcTK2T0g8E",
+  authDomain: "skillreel-68091.firebaseapp.com",
+  projectId: "skillreel-68091",
+  storageBucket: "skillreel-68091.firebasestorage.app",
+  messagingSenderId: "659149705828",
+  appId: "1:659149705828:web:ffcaaf1b62e3c4f0b14571"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const storage = getStorage(app);
+const provider = new GoogleAuthProvider();
+
+// グローバルに公開（通常scriptから呼べるように）
+window._db = db;
+window._auth = auth;
+window._storage = storage;
+window._doc = doc;
+window._setDoc = setDoc;
+window._getDoc = getDoc;
+window._addDoc = addDoc;
+window._updateDoc = updateDoc;
+window._collection = collection;
+window._query = query;
+window._where = where;
+window._orderBy = orderBy;
+window._getDocs = getDocs;
+window._onSnapshot = onSnapshot;
+window._serverTimestamp = serverTimestamp;
+window._increment = increment;
+window._ref = ref;
+window._uploadBytes = uploadBytes;
+window._getDownloadURL = getDownloadURL;
+
+// Googleログイン
+window.googleLogin = async function() {
+  try {
+    await signInWithPopup(auth, provider);
+  } catch(e) {
+    alert('ログインに失敗しました: ' + e.message);
+  }
+};
+
+// ログアウト
+window.logout = async function() {
+  try {
+    await signOut(auth);
+    location.reload();
+  } catch(e) {
+    location.reload();
+  }
+};
+
+// 認証状態の監視
+onAuthStateChanged(auth, async (firebaseUser) => {
+  if (!firebaseUser) {
+    showLoginScreen();
+    return;
+  }
+  try {
+    const userSnap = await getDoc(doc(db, "users", firebaseUser.uid));
+    if (userSnap.exists()) {
+      const userData = userSnap.data();
+      currentUser = { ...userData, uid: firebaseUser.uid };
+      initApp(userData.role || 'staff');
+    } else {
+      const token = new URLSearchParams(window.location.search).get('invite');
+      if (token) {
+        const inviteSnap = await getDoc(doc(db, "invites", token));
+        if (!inviteSnap.exists() || inviteSnap.data().used) {
+          alert('招待リンクが無効または使用済みです');
+          showLoginScreen();
+          return;
+        }
+        const invite = inviteSnap.data();
+        const userData = {
+          uid: firebaseUser.uid,
+          name: firebaseUser.displayName || '未設定',
+          email: firebaseUser.email || '',
+          photoURL: firebaseUser.photoURL || '',
+          role: invite.role,
+          companyId: invite.companyId,
+          storeId: invite.storeId,
+          storeName: invite.storeName || '',
+          createdAt: serverTimestamp(),
+          lastLoginAt: serverTimestamp()
+        };
+        await setDoc(doc(db, "users", firebaseUser.uid), userData);
+        await updateDoc(doc(db, "invites", token), { used: true });
+        currentUser = { ...userData, uid: firebaseUser.uid };
+        initApp(invite.role);
+      } else {
+        // 新規ユーザー・招待なし → 本部として登録（開発用）
+        const userData = {
+          uid: firebaseUser.uid,
+          name: firebaseUser.displayName || '未設定',
+          email: firebaseUser.email || '',
+          photoURL: firebaseUser.photoURL || '',
+          role: 'headquarters',
+          companyId: 'company_001',
+          storeId: null,
+          storeName: '本部',
+          createdAt: serverTimestamp(),
+          lastLoginAt: serverTimestamp()
+        };
+        await setDoc(doc(db, "users", firebaseUser.uid), userData);
+        currentUser = { ...userData, uid: firebaseUser.uid };
+        initApp('headquarters');
+      }
+    }
+  } catch(e) {
+    console.error(e);
+    showLoginScreen();
+  }
+});
 </script>
 
 </body>
