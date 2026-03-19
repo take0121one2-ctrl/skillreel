@@ -5193,9 +5193,22 @@ async function loadFeedVideos() {
   }
 }
 
-function renderFeedSlides(videos) {
+async function renderFeedSlides(videos) {
   const slidesEl = document.getElementById('feed-slides');
   if (!slidesEl) return;
+
+  // 視聴済み動画のIDセットを非同期で取得
+  const watchedVideoIds = new Set();
+  try {
+    if (window._getDocs && window._query && currentUser?.uid) {
+      const wq = window._query(
+        window._collection(window._db, 'watchHistory'),
+        window._where('userId', '==', currentUser.uid)
+      );
+      const wSnap = await window._getDocs(wq);
+      wSnap.forEach(d => watchedVideoIds.add(d.data().videoId));
+    }
+  } catch(e) {}
 
   if (videos.length === 0) {
     slidesEl.innerHTML = `
@@ -5225,6 +5238,7 @@ function renderFeedSlides(videos) {
     const hasVideo = v.videoURL && v.videoURL.includes('youtube.com/embed');
     const youtubeId = v.youtubeId || '';
     const hasThumbnail = v.thumbnailURL && v.thumbnailURL.length > 0;
+    const isWatched = watchedVideoIds.has(v.id);
 
     return `
       <div style="height:100vh;scroll-snap-align:start;position:relative;
@@ -5268,13 +5282,20 @@ function renderFeedSlides(videos) {
             </div>
           </div>
           <div style="display:flex;gap:8px;pointer-events:auto;">
-            <button onclick="event.stopPropagation();handleMarkWatched('${v.id}',this)" id="watched-btn-${v.id}" style="
-              flex:1;padding:10px;background:var(--success);color:white;
-              border:none;border-radius:var(--radius-sm);font-family:var(--font);
-              font-size:13px;font-weight:700;cursor:pointer;
+            <button onclick="event.stopPropagation();${isWatched ? '' : `handleMarkWatched('${v.id}',this)`}"
+              id="watched-btn-${v.id}" style="
+              flex:1;padding:10px;
+              background:${isWatched ? 'rgba(255,255,255,0.15)' : 'var(--success)'};
+              color:${isWatched ? 'rgba(255,255,255,0.6)' : 'white'};
+              border:${isWatched ? '2px solid rgba(255,255,255,0.4)' : 'none'};
+              border-radius:var(--radius-sm);font-family:var(--font);
+              font-size:13px;font-weight:700;
+              cursor:${isWatched ? 'default' : 'pointer'};
+              pointer-events:${isWatched ? 'none' : 'auto'};
               box-shadow:0 2px 8px rgba(0,0,0,0.3);
               transition:all 0.3s ease;">
-              <i class="fa-solid fa-check"></i> 理解できた
+              <i class="fa-solid ${isWatched ? 'fa-check-double' : 'fa-check'}"></i>
+              ${isWatched ? 'チェック済み ✅' : '理解できた'}
             </button>
             <button onclick="event.stopPropagation();openFeedbackModal('${v.id}','${(v.title||'').replace(/'/g,'')}')" style="
               padding:10px 14px;background:rgba(255,255,255,0.2);
@@ -5386,17 +5407,54 @@ async function likeVideo(videoId, btn) {
 }
 
 async function handleMarkWatched(videoId, btn) {
+  const uid = currentUser?.uid || '';
+  if (!uid) { showToast('ログインが必要です', 'error'); return; }
+
+  // 既に視聴済みか確認
+  let alreadyWatched = false;
+  try {
+    if (window._getDocs && window._query) {
+      const dupQ = window._query(
+        window._collection(window._db, 'watchHistory'),
+        window._where('userId', '==', uid),
+        window._where('videoId', '==', videoId)
+      );
+      const dupSnap = await window._getDocs(dupQ);
+      alreadyWatched = dupSnap.size > 0;
+    }
+  } catch(e) {}
+
+  if (alreadyWatched) {
+    if (btn) {
+      btn.innerHTML = '<i class="fa-solid fa-check-double"></i> チェック済み ✅';
+      btn.style.background = 'rgba(255,255,255,0.15)';
+      btn.style.border = '2px solid rgba(255,255,255,0.4)';
+      btn.style.color = 'rgba(255,255,255,0.6)';
+      btn.style.pointerEvents = 'none';
+    }
+    showToast('すでに視聴済みです');
+    return;
+  }
+
   // 即時UI変化
   if (btn) {
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 記録中...';
+    btn.style.pointerEvents = 'none';
+  }
+
+  await markWatched(videoId);
+
+  // 完了後にボタンを更新
+  if (btn) {
     btn.innerHTML = '<i class="fa-solid fa-check-double"></i> チェック済み ✅';
-    btn.style.background = 'rgba(255,255,255,0.3)';
-    btn.style.border = '2px solid rgba(255,255,255,0.6)';
+    btn.style.background = 'rgba(255,255,255,0.2)';
+    btn.style.border = '2px solid rgba(255,255,255,0.5)';
     btn.style.color = 'white';
     btn.style.pointerEvents = 'none';
     btn.style.transform = 'scale(1.05)';
     setTimeout(() => { if (btn) btn.style.transform = 'scale(1)'; }, 200);
+    btn.style.transition = 'all 0.3s ease';
   }
-  await markWatched(videoId);
 }
 
 async function markWatched(videoId) {
@@ -5416,25 +5474,17 @@ async function markWatched(videoId) {
       } catch(e) {}
     }
 
-    // watchHistory 重複チェック
-    if (window._getDocs && window._query) {
-      const dupQ = window._query(
-        window._collection(window._db, 'watchHistory'),
-        window._where('userId', '==', uid),
-        window._where('videoId', '==', videoId)
+    // watchHistoryに記録
+    if (window._addDoc && window._collection) {
+      await window._addDoc(
+        window._collection(window._db, 'watchHistory'), {
+          videoId,
+          userId: uid,
+          companyId,
+          storeId,
+          watchedAt: window._serverTimestamp()
+        }
       );
-      const dupSnap = await window._getDocs(dupQ);
-      if (dupSnap.empty && window._addDoc) {
-        await window._addDoc(
-          window._collection(window._db, 'watchHistory'), {
-            videoId,
-            userId: uid,
-            companyId,
-            storeId,
-            watchedAt: window._serverTimestamp()
-          }
-        );
-      }
     }
 
     // タスクとして割り当てられている場合はstatusをwatchedに更新
