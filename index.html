@@ -1631,6 +1631,8 @@ function navigateStaff(page) {
   if (activeTab) activeTab.style.color = 'var(--primary)';
 
   const content = document.getElementById('main-content');
+  if (!content) return;
+
   if (page === 'feed') renderFeed(content);
   else if (page === 'tasks') renderTasks(content);
   else if (page === 'mypage') renderMypage(content);
@@ -1683,7 +1685,12 @@ function renderFeed(content) {
       読み込み中...
     </div>`;
 
-  loadFeedVideos();
+  // タスクから飛んできた場合は少し待ってからロード
+  if (window._pendingTaskVideoId) {
+    setTimeout(() => loadFeedVideos(), 100);
+  } else {
+    loadFeedVideos();
+  }
 }
 
 async function renderSkills(content) {
@@ -2017,6 +2024,9 @@ function filterTasks(status) {
 function goToTaskVideo(videoId, taskId) {
   window._pendingTaskVideoId = videoId;
   window._pendingTaskId = taskId;
+
+  // フィードに切り替えてから動画をロード
+  currentPage = 'tasks'; // 一旦タスクのまま
   navigateStaff('feed');
   showToast('タスクの動画を表示しています');
 }
@@ -5348,12 +5358,27 @@ async function loadFeedVideos() {
     // タスクから飛んできた場合は該当動画を先頭に
     if (window._pendingTaskVideoId) {
       const targetId = window._pendingTaskVideoId;
+      window._pendingTaskVideoId = null; // 先にクリア
+
       const idx = videos.findIndex(v => v.id === targetId);
       if (idx > 0) {
+        // 見つかった場合は先頭に移動
         const target = videos.splice(idx, 1)[0];
         videos.unshift(target);
+      } else if (idx === -1) {
+        // フィードに存在しない場合（チャンネルが違うなど）
+        // Firestoreから直接取得して先頭に追加
+        try {
+          if (window._getDoc && window._doc) {
+            const snap = await window._getDoc(
+              window._doc(window._db, 'videos', targetId)
+            );
+            if (snap.exists()) {
+              videos.unshift({ id: snap.id, ...snap.data() });
+            }
+          }
+        } catch(e) {}
       }
-      window._pendingTaskVideoId = null;
     }
 
     allFeedVideos = videos;
