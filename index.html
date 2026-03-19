@@ -1724,32 +1724,54 @@ async function loadSkillStats() {
   const statsEl = document.getElementById('skill-stats');
   if (!statsEl) return;
 
-  let watched = 0, confirmed = 0, total = 0;
+  const uid = currentUser?.uid || '';
+  const companyId = currentUser?.companyId || 'company_001';
+  let watchedCount = 0, confirmedCount = 0, totalVideos = 0;
 
   try {
     if (window._getDocs && window._query) {
-      const q = window._query(
-        window._collection(window._db, 'taskAssignments'),
-        window._where('assignedTo', '==', currentUser?.uid || '')
+      // 視聴履歴から視聴済み数を取得
+      const whQ = window._query(
+        window._collection(window._db, 'watchHistory'),
+        window._where('userId', '==', uid),
+        window._where('companyId', '==', companyId)
       );
-      const snap = await window._getDocs(q);
-      snap.forEach(d => {
-        const data = d.data();
-        total++;
-        if (data.status === 'watched') watched++;
-        if (data.status === 'confirmed') confirmed++;
-      });
+      const whSnap = await window._getDocs(whQ);
+      const watchedVideoIds = new Set();
+      whSnap.forEach(d => watchedVideoIds.add(d.data().videoId));
+      watchedCount = watchedVideoIds.size;
+
+      // 公開済み動画の総数
+      const vidQ = window._query(
+        window._collection(window._db, 'videos'),
+        window._where('companyId', '==', companyId),
+        window._where('published', '==', true)
+      );
+      const vidSnap = await window._getDocs(vidQ);
+      totalVideos = vidSnap.size;
+
+      // 確認済みタスク数
+      const confQ = window._query(
+        window._collection(window._db, 'taskAssignments'),
+        window._where('assignedTo', '==', uid),
+        window._where('status', '==', 'confirmed')
+      );
+      const confSnap = await window._getDocs(confQ);
+      confirmedCount = confSnap.size;
     }
   } catch(e) {}
 
-  const skillLevel = confirmed;
-  const progress = total > 0 ? Math.round((confirmed / total) * 100) : 0;
+  const skillLevel = confirmedCount;
+  const progress = totalVideos > 0 ? Math.round((watchedCount / totalVideos) * 100) : 0;
+  const watched = watchedCount;
+  const confirmed = confirmedCount;
+  const total = totalVideos;
 
   statsEl.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;">
       <div style="background:var(--primary-light);border-radius:var(--radius-md);padding:16px;text-align:center;">
         <div style="font-size:28px;font-weight:700;color:var(--primary);">${total}</div>
-        <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">総タスク数</div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">公開動画数</div>
       </div>
       <div style="background:var(--info-light);border-radius:var(--radius-md);padding:16px;text-align:center;">
         <div style="font-size:28px;font-weight:700;color:var(--info);">${watched}</div>
@@ -1807,6 +1829,7 @@ async function renderTasks(content) {
     <!-- タブ -->
     <div style="display:flex;gap:8px;margin-bottom:16px;overflow-x:auto;">
       ${[
+        ['all','すべて','var(--primary-light)','var(--primary)'],
         ['unwatched','未視聴','var(--danger-light)','var(--danger)'],
         ['watched','視聴済み','var(--info-light)','var(--info)'],
         ['confirmed','確認済み','var(--success-light)','var(--success)']
@@ -1814,7 +1837,7 @@ async function renderTasks(content) {
         <button onclick="filterTasks('${s}')" id="task-tab-${s}" style="
           padding:6px 14px;border-radius:999px;
           border:none;
-          background:${i===0?'var(--danger)':'var(--bg)'};
+          background:${i===0?'var(--primary)':'var(--bg)'};
           color:${i===0?'white':'var(--text-secondary)'};
           font-family:var(--font);font-size:12px;font-weight:600;
           cursor:pointer;white-space:nowrap;">${label}</button>`).join('')}
@@ -1823,7 +1846,7 @@ async function renderTasks(content) {
 
   // タスク概要を先頭に表示
   await loadTaskSummary();
-  await loadMyTasks('unwatched');
+  await loadMyTasks('all');
 }
 
 async function loadTaskSummary() {
@@ -1875,6 +1898,12 @@ async function loadMyTasks(status) {
   const listEl = document.getElementById('task-list');
   if (!listEl) return;
 
+  const uid = currentUser?.uid || '';
+  if (!uid) {
+    listEl.innerHTML = `<div style="text-align:center;padding:20px;color:var(--danger);">ログインが必要です</div>`;
+    return;
+  }
+
   listEl.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text-muted);">
     <i class="fa-solid fa-spinner fa-spin"></i> 読み込み中...</div>`;
 
@@ -1882,11 +1911,19 @@ async function loadMyTasks(status) {
 
   try {
     if (window._getDocs && window._query && window._collection) {
-      const q = window._query(
-        window._collection(window._db, 'taskAssignments'),
-        window._where('assignedTo', '==', currentUser?.uid || 'dev_staff'),
-        window._where('status', '==', status)
-      );
+      let q;
+      if (status === 'all') {
+        q = window._query(
+          window._collection(window._db, 'taskAssignments'),
+          window._where('assignedTo', '==', uid)
+        );
+      } else {
+        q = window._query(
+          window._collection(window._db, 'taskAssignments'),
+          window._where('assignedTo', '==', uid),
+          window._where('status', '==', status)
+        );
+      }
       const snap = await window._getDocs(q);
       snap.forEach(d => tasks.push({ id: d.id, ...d.data() }));
     }
@@ -1898,13 +1935,14 @@ async function loadMyTasks(status) {
         text-align:center;color:var(--text-muted);box-shadow:var(--shadow-sm);">
         <i class="fa-solid fa-list-check" style="font-size:32px;margin-bottom:8px;display:block;"></i>
         ${status==='unwatched'?'未視聴のタスクはありません':
-          status==='watched'?'視聴済みのタスクはありません':'確認済みのタスクはありません'}
+          status==='watched'?'視聴済みのタスクはありません':
+          status==='confirmed'?'確認済みのタスクはありません':'タスクはありません'}
       </div>`;
     return;
   }
 
   const statusColors = {
-    unwatched: 'var(--text-muted)',
+    unwatched: 'var(--danger)',
     watched: 'var(--info)',
     confirmed: 'var(--success)'
   };
@@ -1919,7 +1957,7 @@ async function loadMyTasks(status) {
       margin-bottom:8px;box-shadow:var(--shadow-sm);">
       <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;">
         <div style="font-size:14px;font-weight:700;flex:1;">${t.videoTitle||t.title||''}</div>
-        <span style="background:${statusColors[t.status]};color:white;
+        <span style="background:${statusColors[t.status]||'var(--text-muted)'};color:white;
           padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;
           margin-left:8px;white-space:nowrap;">${statusLabels[t.status]||t.status}</span>
       </div>
@@ -1937,7 +1975,7 @@ async function loadMyTasks(status) {
 }
 
 function filterTasks(status) {
-  ['unwatched','watched','confirmed'].forEach(s => {
+  ['all','unwatched','watched','confirmed'].forEach(s => {
     const btn = document.getElementById('task-tab-' + s);
     if (btn) {
       btn.style.background = s === status ? 'var(--primary)' : 'white';
@@ -2425,22 +2463,51 @@ async function renderManagerDashboard(content) {
   loadManagerDashboardData();
 }
 
+async function confirmTask(taskId) {
+  try {
+    await window._updateDoc(
+      window._doc(window._db, 'taskAssignments', taskId),
+      { status: 'confirmed', confirmedAt: window._serverTimestamp() }
+    );
+    showToast('確認済みにしました ✅');
+    await loadManagerDashboardData();
+  } catch(e) {
+    showToast('エラーが発生しました', 'error');
+  }
+}
+
 async function loadManagerDashboardData() {
-  const storeId = currentUser?.storeId || 'store_001';
+  const storeId = currentUser?.storeId || '';
   const companyId = currentUser?.companyId || 'company_001';
+
+  if (!storeId) {
+    const actionEl = document.getElementById('mgr-action-list');
+    if (actionEl) actionEl.innerHTML = `
+      <div style="text-align:center;padding:20px;color:var(--danger);font-size:13px;">
+        店舗IDが未設定です。本部管理者に店舗招待リンクを発行してもらってください。
+      </div>`;
+    return;
+  }
 
   try {
     if (!window._getDocs || !window._query) return;
 
-    // スタッフ数
+    // スタッフ数（role問わず同店舗のスタッフ取得）
     const staffQ = window._query(
       window._collection(window._db, 'users'),
-      window._where('storeId', '==', storeId),
-      window._where('role', '==', 'staff')
+      window._where('storeId', '==', storeId)
     );
     const staffSnap = await window._getDocs(staffQ);
     const staffList = [];
-    staffSnap.forEach(d => staffList.push({ id: d.id, ...d.data() }));
+    staffSnap.forEach(d => {
+      const data = d.data();
+      if (data.role !== 'headquarters' && data.role !== 'manager') {
+        staffList.push({ id: d.id, ...data });
+      }
+    });
+    const staffMap = {};
+    staffSnap.forEach(d => { staffMap[d.id] = d.data(); });
+
     const staffCountEl = document.getElementById('mgr-staff-count');
     if (staffCountEl) staffCountEl.textContent = staffList.length + '名';
 
@@ -2474,32 +2541,32 @@ async function loadManagerDashboardData() {
             確認待ちのスタッフはいません ✅
           </div>`;
       } else {
-        const staffMap = {};
-        staffList.forEach(s => { staffMap[s.id] = s.name || s.displayName || '名前なし'; });
-        actionEl.innerHTML = watchedTasks.map(t => `
+        actionEl.innerHTML = watchedTasks.map(t => {
+          const s = staffMap[t.assignedTo] || {};
+          const name = s.name || s.displayName || '不明';
+          return `
           <div style="display:flex;align-items:center;gap:12px;padding:10px;
             border:1px solid var(--warning-light);border-radius:var(--radius-sm);
             margin-bottom:8px;background:var(--warning-light);">
             <div style="width:36px;height:36px;border-radius:50%;background:var(--warning);
               display:flex;align-items:center;justify-content:center;
               color:white;font-size:14px;font-weight:700;flex-shrink:0;">
-              ${(staffMap[t.assignedTo]||'?')[0]}
+              ${name[0]}
             </div>
             <div style="flex:1;">
-              <div style="font-size:13px;font-weight:700;">
-                ${staffMap[t.assignedTo]||'不明'}
-              </div>
+              <div style="font-size:13px;font-weight:700;">${name}</div>
               <div style="font-size:12px;color:var(--text-secondary);">
                 「${t.videoTitle||''}」を視聴済み
               </div>
             </div>
-            <button onclick="updateTaskStatus('${t.id}','confirmed')" style="
+            <button onclick="confirmTask('${t.id}')" style="
               padding:6px 12px;background:var(--success);color:white;
               border:none;border-radius:var(--radius-sm);font-size:12px;
               font-weight:700;cursor:pointer;white-space:nowrap;">
               確認済みにする
             </button>
-          </div>`).join('');
+          </div>`;
+        }).join('');
       }
     }
 
@@ -2558,9 +2625,7 @@ async function loadManagerDashboardData() {
           </table>`;
       }
     }
-  } catch(e) {
-
-  }
+  } catch(e) {}
 }
 
 function renderManagerUpload(content) {
@@ -5336,7 +5401,9 @@ async function handleMarkWatched(videoId, btn) {
 
 async function markWatched(videoId) {
   const uid = currentUser?.uid || '';
+  if (!uid) return;
   const companyId = currentUser?.companyId || 'company_001';
+  const storeId = currentUser?.storeId || '';
 
   try {
     // views数をインクリメント
@@ -5349,18 +5416,29 @@ async function markWatched(videoId) {
       } catch(e) {}
     }
 
-    if (window._addDoc && window._collection) {
-      await window._addDoc(
-        window._collection(window._db, 'watchHistory'), {
-          videoId,
-          userId: uid,
-          companyId,
-          watchedAt: window._serverTimestamp()
-        }
+    // watchHistory 重複チェック
+    if (window._getDocs && window._query) {
+      const dupQ = window._query(
+        window._collection(window._db, 'watchHistory'),
+        window._where('userId', '==', uid),
+        window._where('videoId', '==', videoId)
       );
+      const dupSnap = await window._getDocs(dupQ);
+      if (dupSnap.empty && window._addDoc) {
+        await window._addDoc(
+          window._collection(window._db, 'watchHistory'), {
+            videoId,
+            userId: uid,
+            companyId,
+            storeId,
+            watchedAt: window._serverTimestamp()
+          }
+        );
+      }
     }
 
     // タスクとして割り当てられている場合はstatusをwatchedに更新
+    let taskUpdated = false;
     if (uid && window._getDocs && window._query) {
       try {
         const q = window._query(
@@ -5375,9 +5453,10 @@ async function markWatched(videoId) {
             window._doc(window._db, 'taskAssignments', d.id),
             { status: 'watched', watchedAt: window._serverTimestamp() }
           );
+          taskUpdated = true;
         }
-        // 店長へ通知
-        if (snap.size > 0 && currentUser?.name) {
+        // 店長へ通知（タスクが更新されたときのみ）
+        if (taskUpdated && currentUser?.name) {
           const videoSnap = await window._getDoc(
             window._doc(window._db, 'videos', videoId)
           ).catch(() => null);
@@ -5388,7 +5467,7 @@ async function markWatched(videoId) {
               message: `${currentUser.name}が「${videoTitle}」を視聴しました`,
               companyId,
               targetRole: 'manager',
-              storeId: currentUser?.storeId || '',
+              storeId,
               read: false,
               createdAt: window._serverTimestamp()
             }
@@ -5399,10 +5478,14 @@ async function markWatched(videoId) {
 
     showToast('視聴済みにしました ✅');
 
+    // タスク画面が表示中なら更新
+    if (currentPage === 'tasks' && taskUpdated) {
+      await loadTaskSummary();
+      await loadMyTasks(currentTaskFilter);
+    }
     // スキル画面が表示中なら更新
     if (currentPage === 'skills') {
-      const content = document.getElementById('main-content');
-      if (content) await loadSkillStats();
+      await loadSkillStats();
     }
 
   } catch(e) {
