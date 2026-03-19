@@ -4041,16 +4041,77 @@ async function loadSentRequests() {
 
 function renderManagerInvite(content) {
   content.innerHTML = `
-    <div style="background:white;border-radius:var(--radius-md);padding:24px;box-shadow:var(--shadow-sm);">
-      <div style="font-size:15px;font-weight:700;margin-bottom:16px;">スタッフを招待する</div>
-      <button onclick="generateInvite()" style="
+    <div style="background:white;border-radius:var(--radius-md);
+      padding:24px;box-shadow:var(--shadow-sm);">
+      <div style="font-size:15px;font-weight:700;margin-bottom:8px;">
+        スタッフを招待する
+      </div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:20px;">
+        招待リンクを発行してLINEやメールで送ってください。
+        リンクからGoogleアカウントでログインすると
+        自動でこの店舗のスタッフとして登録されます。
+      </div>
+      <button onclick="generateManagerStaffInvite()" style="
         padding:12px 24px;background:var(--primary);color:white;border:none;
         border-radius:var(--radius-md);font-family:var(--font);font-size:14px;
         font-weight:700;cursor:pointer;">
-        <i class="fa-solid fa-link"></i> 招待リンクを発行
+        <i class="fa-solid fa-link"></i> スタッフ招待リンクを発行
       </button>
       <div id="invite-result" style="margin-top:16px;"></div>
     </div>`;
+}
+
+async function generateManagerStaffInvite() {
+  if (!currentUser) return;
+
+  const storeId = currentUser.storeId || '';
+  const storeName = currentUser.storeName || '';
+  const companyId = currentUser.companyId || 'company_001';
+
+  if (!storeId) {
+    showToast('店舗IDが設定されていません。本部に連絡してください。', 'error');
+    return;
+  }
+
+  const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+  try {
+    if (window._setDoc && window._doc) {
+      await window._setDoc(
+        window._doc(window._db, 'invites', token), {
+          token,
+          role: 'staff',
+          companyId,
+          storeId,
+          storeName,
+          createdBy: currentUser.uid,
+          used: false,
+          createdAt: window._serverTimestamp()
+        }
+      );
+    }
+
+    const url = location.origin + location.pathname + '?invite=' + token;
+    const resultEl = document.getElementById('invite-result');
+    if (resultEl) {
+      resultEl.innerHTML =
+        '<div style="background:var(--primary-light);border-radius:var(--radius-md);padding:16px;">'
+        + '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">'
+        + storeName + ' · スタッフ用招待リンク</div>'
+        + '<div style="font-size:12px;word-break:break-all;color:var(--primary);margin-bottom:12px;">'
+        + url + '</div>'
+        + '<button onclick="navigator.clipboard.writeText(\'' + url + '\')'
+        + '.then(function(){showToast(\'コピーしました\')})" style="'
+        + 'padding:8px 16px;background:var(--primary);color:white;border:none;'
+        + 'border-radius:var(--radius-sm);font-family:var(--font);'
+        + 'font-size:13px;font-weight:700;cursor:pointer;">'
+        + '<i class="fa-solid fa-copy"></i> コピーする</button>'
+        + '</div>';
+    }
+    showToast('招待リンクを発行しました ✅');
+  } catch(e) {
+    showToast('発行に失敗しました: ' + e.message, 'error');
+  }
 }
 
 function setupHQLayout() {
@@ -6656,6 +6717,27 @@ const LANG_TEXTS = {
     likeToast: '❤️', savedToast: '保存しました 🔖',
     watchedToast: '視聴済みにしました ✅',
     alreadyLiked: 'すでにいいねしています',
+    // 共通UI
+    copy: 'コピーする', loading: '読み込み中...', noData: 'データがありません',
+    // 店長サイドナビ
+    navDashboard: 'ダッシュボード', navUpload: '動画投稿', navTasks: 'タスク管理',
+    navStoreStock: '店舗ストック', navStaff: 'スタッフ一覧', navInvite: '招待',
+    // 店長ダッシュボード
+    staffCount: '在籍スタッフ', weeklyViews: '今週の視聴数',
+    pendingConfirm: '確認待ち', unwatchedTasks: '未視聴タスク',
+    todayCheck: '今日確認すること', staffProgress: 'スタッフ視聴状況',
+    confirmDone: '確認済みにする', noStaffPending: '確認待ちのスタッフはいません ✅',
+    // タスク
+    sendTask: 'タスクを送る',
+    // 招待
+    inviteStaff: 'スタッフを招待する', issueLink: 'スタッフ招待リンクを発行',
+    inviteDesc: '招待リンクを発行してLINEやメールで送ってください。',
+    // 本部サイドナビ
+    navStores: '店舗管理', navVideos: '動画管理',
+    navAllStaff: '全社スタッフ', navSettings: '設定',
+    // 動画投稿
+    postVideo: '投稿する', videoTitle: 'タイトル',
+    videoChannel: 'チャンネル', videoGenre: 'ジャンル',
   },
   en: {
     feed: 'Feed', tasks: 'Tasks', mypage: 'My Page',
@@ -6695,6 +6777,20 @@ const LANG_TEXTS = {
     likeToast: '❤️', savedToast: 'Saved 🔖',
     watchedToast: 'Marked as watched ✅',
     alreadyLiked: 'Already liked',
+    copy: 'Copy', loading: 'Loading...', noData: 'No data',
+    navDashboard: 'Dashboard', navUpload: 'Post Video', navTasks: 'Tasks',
+    navStoreStock: 'Store Videos', navStaff: 'Staff List', navInvite: 'Invite',
+    staffCount: 'Staff', weeklyViews: 'Weekly Views',
+    pendingConfirm: 'Pending', unwatchedTasks: 'Unwatched',
+    todayCheck: 'To Check Today', staffProgress: 'Staff Progress',
+    confirmDone: 'Mark Confirmed', noStaffPending: 'No pending staff ✅',
+    sendTask: 'Send Task',
+    inviteStaff: 'Invite Staff', issueLink: 'Issue Staff Invite Link',
+    inviteDesc: 'Issue an invite link and send via LINE or email.',
+    navStores: 'Stores', navVideos: 'Videos',
+    navAllStaff: 'All Staff', navSettings: 'Settings',
+    postVideo: 'Post', videoTitle: 'Title',
+    videoChannel: 'Channel', videoGenre: 'Genre',
   },
   vi: {
     feed: 'Trang chủ', tasks: 'Nhiệm vụ', mypage: 'Trang cá nhân',
@@ -6734,6 +6830,20 @@ const LANG_TEXTS = {
     likeToast: '❤️', savedToast: 'Đã lưu 🔖',
     watchedToast: 'Đã đánh dấu đã xem ✅',
     alreadyLiked: 'Đã thích rồi',
+    copy: 'Sao chép', loading: 'Đang tải...', noData: 'Không có dữ liệu',
+    navDashboard: 'Trang chủ', navUpload: 'Đăng video', navTasks: 'Nhiệm vụ',
+    navStoreStock: 'Video cửa hàng', navStaff: 'Danh sách nhân viên', navInvite: 'Mời',
+    staffCount: 'Nhân viên', weeklyViews: 'Lượt xem tuần',
+    pendingConfirm: 'Chờ xác nhận', unwatchedTasks: 'Chưa xem',
+    todayCheck: 'Cần kiểm tra hôm nay', staffProgress: 'Tiến độ nhân viên',
+    confirmDone: 'Xác nhận hoàn thành', noStaffPending: 'Không có nhân viên chờ ✅',
+    sendTask: 'Gửi nhiệm vụ',
+    inviteStaff: 'Mời nhân viên', issueLink: 'Tạo liên kết mời nhân viên',
+    inviteDesc: 'Tạo liên kết mời và gửi qua LINE hoặc email.',
+    navStores: 'Cửa hàng', navVideos: 'Video',
+    navAllStaff: 'Tất cả nhân viên', navSettings: 'Cài đặt',
+    postVideo: 'Đăng', videoTitle: 'Tiêu đề',
+    videoChannel: 'Kênh', videoGenre: 'Thể loại',
   },
   my: {
     feed: 'ဗီဒီယို', tasks: 'တာဝန်', mypage: 'ကျွန်ုပ်',
@@ -6773,6 +6883,20 @@ const LANG_TEXTS = {
     likeToast: '❤️', savedToast: 'သိမ်းဆည်းပြီး 🔖',
     watchedToast: 'ကြည့်ပြီးဟုမှတ်သားပြီး ✅',
     alreadyLiked: 'ကြိုက်ပြီးသား',
+    copy: 'ကူးယူရန်', loading: 'ဖတ်နေသည်...', noData: 'ဒေတာမရှိ',
+    navDashboard: 'ဒက်ရှ်ဘုတ်', navUpload: 'ဗီဒီယိုတင်ရန်', navTasks: 'တာဝန်',
+    navStoreStock: 'ဆိုင်ဗီဒီယို', navStaff: 'ဝန်ထမ်းစာရင်း', navInvite: 'ဖိတ်ကြားရန်',
+    staffCount: 'ဝန်ထမ်း', weeklyViews: 'အပတ်စဉ်ကြည့်ရှုမှု',
+    pendingConfirm: 'အတည်ပြုဆဲ', unwatchedTasks: 'မကြည့်ရသေး',
+    todayCheck: 'ယနေ့စစ်ဆေးရန်', staffProgress: 'ဝန်ထမ်းတိုးတက်မှု',
+    confirmDone: 'အတည်ပြုပြီး', noStaffPending: 'အတည်ပြုဆဲဝန်ထမ်းမရှိ ✅',
+    sendTask: 'တာဝန်ပေးပို့',
+    inviteStaff: 'ဝန်ထမ်းဖိတ်ကြားရန်', issueLink: 'ဝန်ထမ်းဖိတ်ကြားလင့်ခ်ထုတ်ရန်',
+    inviteDesc: 'ဖိတ်ကြားလင့်ခ်ထုတ်ပြီး LINE သို့မဟုတ် email မှပေးပို့ပါ။',
+    navStores: 'ဆိုင်များ', navVideos: 'ဗီဒီယိုများ',
+    navAllStaff: 'ဝန်ထမ်းအားလုံး', navSettings: 'ဆက်တင်',
+    postVideo: 'တင်ရန်', videoTitle: 'ခေါင်းစဉ်',
+    videoChannel: 'ချန်နယ်', videoGenre: 'အမျိုးအစား',
   },
   ne: {
     feed: 'फिड', tasks: 'कार्य', mypage: 'मेरो पृष्ठ',
@@ -6812,108 +6936,161 @@ const LANG_TEXTS = {
     likeToast: '❤️', savedToast: 'सुरक्षित गरियो 🔖',
     watchedToast: 'हेरिएको चिह्नित गरियो ✅',
     alreadyLiked: 'पहिले नै मनपराइसकेको',
+    copy: 'प्रतिलिपि', loading: 'लोड हुँदैछ...', noData: 'डेटा छैन',
+    navDashboard: 'ड्यासबोर्ड', navUpload: 'भिडियो पोस्ट', navTasks: 'कार्य',
+    navStoreStock: 'स्टोर भिडियो', navStaff: 'कर्मचारी सूची', navInvite: 'आमन्त्रण',
+    staffCount: 'कर्मचारी', weeklyViews: 'साप्ताहिक दृश्य',
+    pendingConfirm: 'पुष्टि बाँकी', unwatchedTasks: 'नहेरिएको',
+    todayCheck: 'आज जाँच गर्ने', staffProgress: 'कर्मचारी प्रगति',
+    confirmDone: 'पुष्टि गर्नुस्', noStaffPending: 'पुष्टि बाँकी छैन ✅',
+    sendTask: 'कार्य पठाउनुस्',
+    inviteStaff: 'कर्मचारी आमन्त्रण', issueLink: 'कर्मचारी आमन्त्रण लिंक जारी',
+    inviteDesc: 'आमन्त्रण लिंक जारी गरी LINE वा email मार्फत पठाउनुस्।',
+    navStores: 'स्टोरहरू', navVideos: 'भिडियोहरू',
+    navAllStaff: 'सबै कर्मचारी', navSettings: 'सेटिङ',
+    postVideo: 'पोस्ट', videoTitle: 'शीर्षक',
+    videoChannel: 'च्यानल', videoGenre: 'शैली',
   },
 };
 
 function changeLang(lang) {
   currentLang = lang;
   const t = LANG_TEXTS[lang] || LANG_TEXTS['ja'];
+  const role = currentUser?.role || 'staff';
 
-  // ボトムタブのラベルを更新
-  const tabIcons = {
-    feed: 'fa-play', tasks: 'fa-list-check', mypage: 'fa-user'
-  };
-  const tabKeys = { feed: t.feed, tasks: t.tasks, mypage: t.mypage };
-  Object.entries(tabKeys).forEach(([key, label]) => {
-    const tab = document.getElementById('tab-' + key);
-    if (tab) {
-      tab.innerHTML = `
-        <i class="fa-solid ${tabIcons[key]}" style="font-size:20px;"></i>
-        <span style="font-size:10px;">${label}</span>`;
+  // ===== スタッフ画面 =====
+  if (role === 'staff') {
+    // ボトムタブのラベルを更新
+    const tabIcons = { feed: 'fa-play', tasks: 'fa-list-check', mypage: 'fa-user' };
+    const tabKeys = { feed: t.feed, tasks: t.tasks, mypage: t.mypage };
+    Object.entries(tabKeys).forEach(function(entry) {
+      const key = entry[0]; const label = entry[1];
+      const tab = document.getElementById('tab-' + key);
+      if (tab) {
+        tab.innerHTML = '<i class="fa-solid ' + tabIcons[key] + '" style="font-size:20px;"></i>'
+          + '<span style="font-size:10px;">' + label + '</span>';
+      }
+    });
+
+    // 検索プレースホルダー
+    const searchInput = document.getElementById('feed-search');
+    if (searchInput) searchInput.placeholder = t.search;
+
+    // ジャンル「全て」ボタン
+    const genreAllBtn = document.getElementById('genre-all');
+    if (genreAllBtn) genreAllBtn.textContent = t.genreAll;
+
+    // タスクフィルタータブ
+    const taskTabMap = { all: t.tabAll, unwatched: t.tabUnwatched, watched: t.tabWatched, confirmed: t.tabConfirmed };
+    Object.entries(taskTabMap).forEach(function(entry) {
+      const btn = document.getElementById('task-tab-' + entry[0]);
+      if (btn) btn.textContent = entry[1];
+    });
+
+    // マイページボタン
+    const likedBtn = document.getElementById('btn-liked');
+    if (likedBtn) likedBtn.innerHTML = '<i class="fa-solid fa-heart"></i> ' + t.liked;
+    const savedBtn = document.getElementById('btn-saved');
+    if (savedBtn) savedBtn.innerHTML = '<i class="fa-solid fa-bookmark"></i> ' + t.saved;
+
+    // 現在表示中のページを再レンダリング
+    const content = document.getElementById('main-content');
+    if (content && currentPage) {
+      if (currentPage === 'tasks') renderTasks(content);
+      else if (currentPage === 'mypage') renderMypage(content);
+      else if (currentPage === 'feed') renderFeed(content);
     }
-  });
 
-  // 検索プレースホルダー
-  const searchInput = document.getElementById('feed-search');
-  if (searchInput) searchInput.placeholder = t.search;
-
-  // ジャンル「全て」ボタン
-  const genreAllBtn = document.getElementById('genre-all');
-  if (genreAllBtn) genreAllBtn.textContent = t.genreAll;
-
-  // タスクフィルタータブ
-  const taskTabMap = {
-    'all': t.tabAll,
-    'unwatched': t.tabUnwatched,
-    'watched': t.tabWatched,
-    'confirmed': t.tabConfirmed
-  };
-  Object.entries(taskTabMap).forEach(([key, label]) => {
-    const btn = document.getElementById('task-tab-' + key);
-    if (btn) btn.textContent = label;
-  });
-
-  // タスク一覧内のステータスラベル・ボタンを更新
-  document.querySelectorAll('[data-status-label]').forEach(el => {
-    const status = el.dataset.statusLabel;
-    if (status === 'unwatched') el.textContent = t.unwatched;
-    if (status === 'watched') el.textContent = t.watched;
-    if (status === 'confirmed') el.textContent = t.confirmed;
-  });
-  document.querySelectorAll('[data-watch-now]').forEach(el => {
-    el.innerHTML = `<i class="fa-solid fa-play"></i> ${t.watchNow}`;
-  });
-
-  // タスクサマリーのラベル
-  document.querySelectorAll('[data-summary-label]').forEach(el => {
-    const key = el.dataset.summaryLabel;
-    if (key === 'unwatched') el.textContent = t.unwatched;
-    if (key === 'watched') el.textContent = t.watched;
-    if (key === 'confirmed') el.textContent = t.confirmed;
-  });
-
-  // スキルレベルタイトル
-  const skillTitle = document.getElementById('skill-level-title');
-  if (skillTitle) skillTitle.textContent = t.skillLevel;
-
-  // マイページボタン
-  const likedBtn = document.getElementById('btn-liked');
-  if (likedBtn) likedBtn.innerHTML = `<i class="fa-solid fa-heart"></i> ${t.liked}`;
-  const savedBtn = document.getElementById('btn-saved');
-  if (savedBtn) savedBtn.innerHTML = `<i class="fa-solid fa-bookmark"></i> ${t.saved}`;
-
-  // ログアウトボタン（マイページ）
-  document.querySelectorAll('[data-logout-btn]').forEach(el => {
-    el.innerHTML = `<i class="fa-solid fa-sign-out-alt"></i> ${t.logout}`;
-  });
-
-  // langセレクトの値を同期
-  const sel = document.getElementById('lang-select');
-  if (sel) sel.value = lang;
-
-  // 現在表示中のページを再レンダリングして反映
-  const content = document.getElementById('main-content');
-  if (content && currentPage) {
-    if (currentPage === 'tasks') renderTasks(content);
-    else if (currentPage === 'mypage') renderMypage(content);
-    else if (currentPage === 'feed') renderFeed(content);
+    // フィード内のiframeの字幕言語を切り替え
+    const langMap = { ja:'ja', en:'en', vi:'vi', my:'my', ne:'ne' };
+    const ccLang = langMap[lang] || 'ja';
+    document.querySelectorAll('#feed-slides iframe').forEach(function(iframe) {
+      try {
+        const src = iframe.src;
+        const newSrc = src
+          .replace(/cc_lang_pref=[^&]*/, 'cc_lang_pref=' + ccLang)
+          .replace(/cc_load_policy=[^&]*/, 'cc_load_policy=1');
+        if (newSrc !== src) iframe.src = newSrc;
+      } catch(e) {}
+    });
   }
 
-  // フィード内のiframeの字幕言語を切り替え
-  const langMap = {
-    ja: 'ja', en: 'en', vi: 'vi', my: 'my', ne: 'ne'
-  };
-  const ccLang = langMap[lang] || 'ja';
+  // ===== 店長画面 =====
+  else if (role === 'manager') {
+    // サイドナビのラベルを更新
+    const managerNavMap = {
+      'nav-dashboard': t.navDashboard,
+      'nav-upload':    t.navUpload,
+      'nav-tasks':     t.navTasks,
+      'nav-storestock':t.navStoreStock,
+      'nav-staff':     t.navStaff,
+      'nav-invite':    t.navInvite,
+    };
+    Object.entries(managerNavMap).forEach(function(entry) {
+      const el = document.getElementById(entry[0]);
+      if (el) {
+        const icon = el.querySelector('i');
+        const iconClass = icon ? icon.className : '';
+        el.innerHTML = '<i class="' + iconClass + '" style="width:16px;text-align:center;"></i> ' + entry[1];
+      }
+    });
 
-  document.querySelectorAll('#feed-slides iframe').forEach(iframe => {
-    try {
-      const src = iframe.src;
-      const newSrc = src
-        .replace(/cc_lang_pref=[^&]*/,  'cc_lang_pref=' + ccLang)
-        .replace(/cc_load_policy=[^&]*/, 'cc_load_policy=1');
-      if (newSrc !== src) iframe.src = newSrc;
-    } catch(e) {}
-  });
+    // ページタイトルを更新
+    const titleEl = document.getElementById('page-title');
+    if (titleEl) {
+      const titleMap = {
+        dashboard: t.navDashboard, upload: t.navUpload,
+        tasks: t.navTasks, storestock: t.navStoreStock,
+        staff: t.navStaff, invite: t.navInvite,
+      };
+      titleEl.textContent = titleMap[currentPage] || '';
+    }
+
+    // 現在表示中のページを再レンダリング
+    const content = document.getElementById('main-content');
+    if (content && currentPage) {
+      if (currentPage === 'dashboard') renderManagerDashboard(content);
+      else if (currentPage === 'tasks') renderManagerTasks(content);
+      else if (currentPage === 'invite') renderManagerInvite(content);
+    }
+  }
+
+  // ===== 本部画面 =====
+  else if (role === 'headquarters') {
+    // サイドナビのラベルを更新
+    const hqNavMap = {
+      'hq-nav-dashboard': t.navDashboard,
+      'hq-nav-stores':    t.navStores,
+      'hq-nav-upload':    t.navUpload,
+      'hq-nav-videos':    t.navVideos,
+      'hq-nav-staff':     t.navAllStaff,
+      'hq-nav-invite':    t.navInvite,
+      'hq-nav-settings':  t.navSettings,
+    };
+    Object.entries(hqNavMap).forEach(function(entry) {
+      const el = document.getElementById(entry[0]);
+      if (el) {
+        const icon = el.querySelector('i');
+        const iconClass = icon ? icon.className : '';
+        el.innerHTML = '<i class="' + iconClass + '" style="width:16px;text-align:center;"></i> ' + entry[1];
+      }
+    });
+
+    // ページタイトルを更新
+    const titleEl = document.getElementById('hq-page-title');
+    if (titleEl) {
+      const titleMap = {
+        dashboard: t.navDashboard, stores: t.navStores,
+        upload: t.navUpload, videos: t.navVideos,
+        staff: t.navAllStaff, invite: t.navInvite, settings: t.navSettings,
+      };
+      titleEl.textContent = titleMap[currentPage] || '';
+    }
+  }
+
+  // langセレクトの値を同期（全ロール共通）
+  const sel = document.getElementById('lang-select');
+  if (sel) sel.value = lang;
 }
 async function generateInvite(role) {
   if (!currentUser) return;
