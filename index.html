@@ -1590,9 +1590,9 @@ function setupStaffLayout() {
       height:64px;background:var(--surface);
       border-top:1px solid var(--border);
       display:flex;flex-shrink:0;">
-      ${['feed','skills','tasks','mypage'].map((p,i) => {
-        const icons = ['fa-play','fa-chart-line','fa-list-check','fa-user'];
-        const labels = ['フィード','スキル','タスク','マイページ'];
+      ${['feed','tasks','mypage'].map((p,i) => {
+        const icons = ['fa-play','fa-list-check','fa-user'];
+        const labels = ['フィード','タスク','マイページ'];
         return `<button onclick="navigateStaff('${p}')" id="tab-${p}" style="
           flex:1;border:none;background:none;cursor:pointer;
           display:flex;flex-direction:column;align-items:center;
@@ -1632,7 +1632,6 @@ function navigateStaff(page) {
 
   const content = document.getElementById('main-content');
   if (page === 'feed') renderFeed(content);
-  else if (page === 'skills') renderSkills(content);
   else if (page === 'tasks') renderTasks(content);
   else if (page === 'mypage') renderMypage(content);
 }
@@ -1725,89 +1724,97 @@ async function loadSkillStats() {
   if (!statsEl) return;
 
   const uid = currentUser?.uid || '';
-  const companyId = currentUser?.companyId || 'company_001';
-  let watchedCount = 0, confirmedCount = 0, totalVideos = 0;
+  let confirmedCount = 0;
+  let watchedCount = 0;
+  let totalTasks = 0;
 
   try {
     if (window._getDocs && window._query) {
-      // 視聴履歴から視聴済み数を取得
-      const whQ = window._query(
-        window._collection(window._db, 'watchHistory'),
-        window._where('userId', '==', uid),
-        window._where('companyId', '==', companyId)
-      );
-      const whSnap = await window._getDocs(whQ);
-      const watchedVideoIds = new Set();
-      whSnap.forEach(d => watchedVideoIds.add(d.data().videoId));
-      watchedCount = watchedVideoIds.size;
-
-      // 公開済み動画の総数
-      const vidQ = window._query(
-        window._collection(window._db, 'videos'),
-        window._where('companyId', '==', companyId),
-        window._where('published', '==', true)
-      );
-      const vidSnap = await window._getDocs(vidQ);
-      totalVideos = vidSnap.size;
-
-      // 確認済みタスク数
-      const confQ = window._query(
+      const q = window._query(
         window._collection(window._db, 'taskAssignments'),
-        window._where('assignedTo', '==', uid),
-        window._where('status', '==', 'confirmed')
+        window._where('assignedTo', '==', uid)
       );
-      const confSnap = await window._getDocs(confQ);
-      confirmedCount = confSnap.size;
+      const snap = await window._getDocs(q);
+      snap.forEach(d => {
+        totalTasks++;
+        const st = d.data().status;
+        if (st === 'watched') watchedCount++;
+        if (st === 'confirmed') confirmedCount++;
+      });
     }
   } catch(e) {}
 
   const skillLevel = confirmedCount;
-  const progress = totalVideos > 0 ? Math.round((watchedCount / totalVideos) * 100) : 0;
-  const watched = watchedCount;
-  const confirmed = confirmedCount;
-  const total = totalVideos;
+  const progress = totalTasks > 0
+    ? Math.round((confirmedCount / totalTasks) * 100)
+    : 0;
+
+  const levelMsg =
+    confirmedCount === 0 ? 'タスクをこなしてスキルを積み上げよう！' :
+    confirmedCount < 3  ? 'いいスタート！続けよう 🔥' :
+    confirmedCount < 7  ? '成長中！素晴らしい 🌟' :
+    confirmedCount < 15 ? 'ベテランへの道！⭐' : 'スキルマスター！👑';
 
   statsEl.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;">
-      <div style="background:var(--primary-light);border-radius:var(--radius-md);padding:16px;text-align:center;">
-        <div style="font-size:28px;font-weight:700;color:var(--primary);">${total}</div>
-        <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">公開動画数</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);
+      gap:10px;margin-bottom:16px;">
+      <div style="background:var(--danger-light);border-radius:var(--radius-md);
+        padding:12px;text-align:center;">
+        <div style="font-size:24px;font-weight:700;color:var(--danger);">
+          ${totalTasks - watchedCount - confirmedCount}
+        </div>
+        <div style="font-size:10px;color:var(--text-secondary);margin-top:2px;">
+          未視聴
+        </div>
       </div>
-      <div style="background:var(--info-light);border-radius:var(--radius-md);padding:16px;text-align:center;">
-        <div style="font-size:28px;font-weight:700;color:var(--info);">${watched}</div>
-        <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">視聴済み</div>
+      <div style="background:var(--info-light);border-radius:var(--radius-md);
+        padding:12px;text-align:center;">
+        <div style="font-size:24px;font-weight:700;color:var(--info);">
+          ${watchedCount}
+        </div>
+        <div style="font-size:10px;color:var(--text-secondary);margin-top:2px;">
+          視聴済み
+        </div>
       </div>
-      <div style="background:var(--success-light);border-radius:var(--radius-md);padding:16px;text-align:center;">
-        <div style="font-size:28px;font-weight:700;color:var(--success);">${confirmed}</div>
-        <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">確認済み</div>
+      <div style="background:var(--success-light);border-radius:var(--radius-md);
+        padding:12px;text-align:center;">
+        <div style="font-size:24px;font-weight:700;color:var(--success);">
+          ${confirmedCount}
+        </div>
+        <div style="font-size:10px;color:var(--text-secondary);margin-top:2px;">
+          確認済み
+        </div>
       </div>
     </div>
 
-    <div style="margin-bottom:20px;">
-      <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-        <span style="font-size:13px;font-weight:600;">スキル習得率</span>
-        <span style="font-size:13px;font-weight:700;color:var(--primary);">${progress}%</span>
+    <div style="margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+        <span style="font-size:13px;font-weight:600;">習得率</span>
+        <span style="font-size:13px;font-weight:700;color:var(--primary);">
+          ${progress}%
+        </span>
       </div>
-      <div style="background:var(--border);border-radius:999px;height:12px;overflow:hidden;">
-        <div style="background:linear-gradient(90deg,var(--primary),var(--info));
-          height:12px;border-radius:999px;width:0%;transition:width 0.8s ease;"
+      <div style="background:var(--border);border-radius:999px;
+        height:10px;overflow:hidden;">
+        <div style="background:linear-gradient(90deg,var(--primary),var(--success));
+          height:10px;border-radius:999px;width:0%;transition:width 0.8s ease;"
           id="skill-progress-bar"></div>
       </div>
-      <div style="font-size:11px;color:var(--text-secondary);margin-top:6px;">
-        店長に確認されたスキルが増えるほどレベルが上がります
+      <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">
+        店長に確認されたタスクが増えるほどレベルが上がります
       </div>
     </div>
 
     <div style="background:var(--accent-light);border-radius:var(--radius-md);
       padding:16px;text-align:center;">
-      <div style="font-size:11px;color:var(--text-secondary);margin-bottom:4px;">現在のスキルレベル</div>
-      <div style="font-size:36px;font-weight:700;color:var(--accent);">
+      <div style="font-size:11px;color:var(--text-secondary);margin-bottom:4px;">
+        現在のスキルレベル
+      </div>
+      <div style="font-size:40px;font-weight:700;color:var(--accent);">
         Lv.${skillLevel}
       </div>
       <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">
-        ${confirmed === 0 ? 'タスクをこなしてスキルを積み上げよう！' :
-          confirmed < 5 ? 'いいスタート！続けよう 🔥' :
-          confirmed < 10 ? '成長中！素晴らしい 🌟' : 'スキルマスター！⭐'}
+        ${levelMsg}
       </div>
     </div>`;
 
@@ -1823,30 +1830,47 @@ async function renderTasks(content) {
   content.innerHTML = `
     <div style="font-size:18px;font-weight:700;margin-bottom:16px;">タスク</div>
 
-    <!-- タスク一覧（先頭に表示） -->
-    <div id="task-summary" style="margin-bottom:16px;"></div>
-
-    <!-- タブ -->
+    <!-- タスクフィルタータブ -->
     <div style="display:flex;gap:8px;margin-bottom:16px;overflow-x:auto;">
       ${[
-        ['all','すべて','var(--primary-light)','var(--primary)'],
-        ['unwatched','未視聴','var(--danger-light)','var(--danger)'],
-        ['watched','視聴済み','var(--info-light)','var(--info)'],
-        ['confirmed','確認済み','var(--success-light)','var(--success)']
-      ].map(([s,label,bg,color],i) => `
+        ['all','すべて'],
+        ['unwatched','未視聴'],
+        ['watched','視聴済み'],
+        ['confirmed','確認済み']
+      ].map(([s,label],i) => `
         <button onclick="filterTasks('${s}')" id="task-tab-${s}" style="
           padding:6px 14px;border-radius:999px;
           border:none;
           background:${i===0?'var(--primary)':'var(--bg)'};
           color:${i===0?'white':'var(--text-secondary)'};
           font-family:var(--font);font-size:12px;font-weight:600;
-          cursor:pointer;white-space:nowrap;">${label}</button>`).join('')}
+          cursor:pointer;white-space:nowrap;">${label}</button>`
+      ).join('')}
     </div>
-    <div id="task-list"></div>`;
 
-  // タスク概要を先頭に表示
+    <!-- タスク件数サマリー -->
+    <div id="task-summary" style="margin-bottom:16px;"></div>
+
+    <!-- タスク一覧 -->
+    <div id="task-list" style="margin-bottom:24px;"></div>
+
+    <!-- スキルレベル -->
+    <div style="background:white;border-radius:var(--radius-lg);
+      padding:20px;box-shadow:var(--shadow-sm);">
+      <div style="font-size:15px;font-weight:700;margin-bottom:16px;">
+        <i class="fa-solid fa-trophy" style="color:var(--accent);margin-right:6px;"></i>
+        スキルレベル
+      </div>
+      <div id="skill-stats">
+        <div style="text-align:center;color:var(--text-muted);font-size:13px;">
+          <i class="fa-solid fa-spinner fa-spin"></i>
+        </div>
+      </div>
+    </div>`;
+
   await loadTaskSummary();
   await loadMyTasks('all');
+  await loadSkillStats();
 }
 
 async function loadTaskSummary() {
@@ -1898,45 +1922,44 @@ async function loadMyTasks(status) {
   const listEl = document.getElementById('task-list');
   if (!listEl) return;
 
-  const uid = currentUser?.uid || '';
-  if (!uid) {
-    listEl.innerHTML = `<div style="text-align:center;padding:20px;color:var(--danger);">ログインが必要です</div>`;
-    return;
-  }
+  listEl.innerHTML = `
+    <div style="text-align:center;padding:20px;color:var(--text-muted);">
+      <i class="fa-solid fa-spinner fa-spin"></i>
+    </div>`;
 
-  listEl.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text-muted);">
-    <i class="fa-solid fa-spinner fa-spin"></i> 読み込み中...</div>`;
+  const uid = currentUser?.uid || '';
+  if (!uid) { listEl.innerHTML = ''; return; }
 
   let tasks = [];
-
   try {
     if (window._getDocs && window._query && window._collection) {
-      let q;
-      if (status === 'all') {
-        q = window._query(
-          window._collection(window._db, 'taskAssignments'),
-          window._where('assignedTo', '==', uid)
-        );
-      } else {
-        q = window._query(
-          window._collection(window._db, 'taskAssignments'),
-          window._where('assignedTo', '==', uid),
-          window._where('status', '==', status)
-        );
+      let constraints = [window._where('assignedTo', '==', uid)];
+      if (status !== 'all') {
+        constraints.push(window._where('status', '==', status));
       }
+      const q = window._query(
+        window._collection(window._db, 'taskAssignments'),
+        ...constraints
+      );
       const snap = await window._getDocs(q);
       snap.forEach(d => tasks.push({ id: d.id, ...d.data() }));
     }
   } catch(e) {}
 
+  // 未視聴を先頭に並び替え
+  tasks.sort((a, b) => {
+    const order = { unwatched: 0, watched: 1, confirmed: 2 };
+    return (order[a.status] || 0) - (order[b.status] || 0);
+  });
+
   if (tasks.length === 0) {
     listEl.innerHTML = `
-      <div style="background:white;border-radius:var(--radius-md);padding:24px;
-        text-align:center;color:var(--text-muted);box-shadow:var(--shadow-sm);">
-        <i class="fa-solid fa-list-check" style="font-size:32px;margin-bottom:8px;display:block;"></i>
-        ${status==='unwatched'?'未視聴のタスクはありません':
-          status==='watched'?'視聴済みのタスクはありません':
-          status==='confirmed'?'確認済みのタスクはありません':'タスクはありません'}
+      <div style="background:white;border-radius:var(--radius-md);
+        padding:24px;text-align:center;color:var(--text-muted);
+        box-shadow:var(--shadow-sm);">
+        <i class="fa-solid fa-list-check"
+          style="font-size:32px;margin-bottom:8px;display:block;"></i>
+        タスクはありません
       </div>`;
     return;
   }
@@ -1953,23 +1976,29 @@ async function loadMyTasks(status) {
   };
 
   listEl.innerHTML = tasks.map(t => `
-    <div style="background:white;border-radius:var(--radius-md);padding:16px;
-      margin-bottom:8px;box-shadow:var(--shadow-sm);">
-      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;">
-        <div style="font-size:14px;font-weight:700;flex:1;">${t.videoTitle||t.title||''}</div>
-        <span style="background:${statusColors[t.status]||'var(--text-muted)'};color:white;
-          padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;
-          margin-left:8px;white-space:nowrap;">${statusLabels[t.status]||t.status}</span>
+    <div style="background:white;border-radius:var(--radius-md);
+      padding:16px;margin-bottom:8px;box-shadow:var(--shadow-sm);
+      ${t.status === 'unwatched' ? 'border-left:4px solid var(--danger);' : ''}">
+      <div style="display:flex;justify-content:space-between;
+        align-items:start;margin-bottom:8px;">
+        <div style="font-size:14px;font-weight:700;flex:1;
+          padding-right:8px;">${t.videoTitle || ''}</div>
+        <span style="
+          background:${statusColors[t.status]};color:white;
+          padding:2px 8px;border-radius:999px;
+          font-size:11px;font-weight:600;white-space:nowrap;">
+          ${statusLabels[t.status] || t.status}
+        </span>
       </div>
-      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">
-        期日：${t.dueDate||'未設定'}
+      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;">
+        期日：${t.dueDate || '未設定'}
       </div>
       ${t.status === 'unwatched' ? `
-        <button onclick="watchTaskVideo('${t.id}','${t.videoId||''}')" style="
+        <button onclick="goToTaskVideo('${t.videoId || ''}','${t.id}')" style="
           width:100%;padding:10px;background:var(--primary);color:white;
           border:none;border-radius:var(--radius-sm);font-family:var(--font);
-          font-size:13px;font-weight:600;cursor:pointer;">
-          <i class="fa-solid fa-play"></i> 動画を見る
+          font-size:13px;font-weight:700;cursor:pointer;">
+          <i class="fa-solid fa-play"></i> 今すぐ確認する
         </button>` : ''}
     </div>`).join('');
 }
@@ -1983,6 +2012,17 @@ function filterTasks(status) {
     }
   });
   loadMyTasks(status);
+}
+
+function goToTaskVideo(videoId, taskId) {
+  // フィードに切り替えてタスク動画にスクロール
+  navigateStaff('feed');
+
+  // タスク動画を先頭に表示するフラグをセット
+  window._pendingTaskVideoId = videoId;
+  window._pendingTaskId = taskId;
+
+  showToast('タスクの動画を表示しています');
 }
 
 async function watchTaskVideo(taskId, videoId) {
@@ -5183,6 +5223,17 @@ async function loadFeedVideos() {
       }
     }
 
+    // タスクから飛んできた場合は該当動画を先頭に
+    if (window._pendingTaskVideoId) {
+      const targetId = window._pendingTaskVideoId;
+      const idx = videos.findIndex(v => v.id === targetId);
+      if (idx > 0) {
+        const target = videos.splice(idx, 1)[0];
+        videos.unshift(target);
+      }
+      window._pendingTaskVideoId = null;
+    }
+
     allFeedVideos = videos;
     if (loadingEl) loadingEl.style.display = 'none';
     renderFeedSlides(videos);
@@ -5197,7 +5248,25 @@ async function renderFeedSlides(videos) {
   const slidesEl = document.getElementById('feed-slides');
   if (!slidesEl) return;
 
-  // 視聴済み動画のIDセットを非同期で取得
+  // タスクとして割り当てられている動画IDを取得
+  const taskVideoIds = new Set();
+  const taskIdMap = {};
+  try {
+    if (window._getDocs && window._query && currentUser?.uid) {
+      const tq = window._query(
+        window._collection(window._db, 'taskAssignments'),
+        window._where('assignedTo', '==', currentUser.uid),
+        window._where('status', '==', 'unwatched')
+      );
+      const tSnap = await window._getDocs(tq);
+      tSnap.forEach(d => {
+        taskVideoIds.add(d.data().videoId);
+        taskIdMap[d.data().videoId] = d.id;
+      });
+    }
+  } catch(e) {}
+
+  // 視聴済み動画のIDセットを取得
   const watchedVideoIds = new Set();
   try {
     if (window._getDocs && window._query && currentUser?.uid) {
@@ -5238,7 +5307,9 @@ async function renderFeedSlides(videos) {
     const hasVideo = v.videoURL && v.videoURL.includes('youtube.com/embed');
     const youtubeId = v.youtubeId || '';
     const hasThumbnail = v.thumbnailURL && v.thumbnailURL.length > 0;
+    const isTask = taskVideoIds.has(v.id);
     const isWatched = watchedVideoIds.has(v.id);
+    const taskId = taskIdMap[v.id] || '';
 
     return `
       <div style="height:100vh;scroll-snap-align:start;position:relative;
@@ -5282,21 +5353,22 @@ async function renderFeedSlides(videos) {
             </div>
           </div>
           <div style="display:flex;gap:8px;pointer-events:auto;">
-            <button onclick="event.stopPropagation();${isWatched ? '' : `handleMarkWatched('${v.id}',this)`}"
-              id="watched-btn-${v.id}" style="
-              flex:1;padding:10px;
-              background:${isWatched ? 'rgba(255,255,255,0.15)' : 'var(--success)'};
-              color:${isWatched ? 'rgba(255,255,255,0.6)' : 'white'};
-              border:${isWatched ? '2px solid rgba(255,255,255,0.4)' : 'none'};
-              border-radius:var(--radius-sm);font-family:var(--font);
-              font-size:13px;font-weight:700;
-              cursor:${isWatched ? 'default' : 'pointer'};
-              pointer-events:${isWatched ? 'none' : 'auto'};
-              box-shadow:0 2px 8px rgba(0,0,0,0.3);
-              transition:all 0.3s ease;">
-              <i class="fa-solid ${isWatched ? 'fa-check-double' : 'fa-check'}"></i>
-              ${isWatched ? 'チェック済み ✅' : '理解できた'}
-            </button>
+            ${isTask ? `
+              <button onclick="event.stopPropagation();${isWatched ? '' : `handleMarkWatched('${v.id}','${taskId}',this)`}"
+                id="watched-btn-${v.id}" style="
+                flex:1;padding:10px;
+                background:${isWatched ? 'rgba(255,255,255,0.15)' : 'var(--success)'};
+                color:${isWatched ? 'rgba(255,255,255,0.6)' : 'white'};
+                border:${isWatched ? '2px solid rgba(255,255,255,0.4)' : 'none'};
+                border-radius:var(--radius-sm);font-family:var(--font);
+                font-size:13px;font-weight:700;
+                cursor:${isWatched ? 'default' : 'pointer'};
+                pointer-events:${isWatched ? 'none' : 'auto'};
+                box-shadow:0 2px 8px rgba(0,0,0,0.3);
+                transition:all 0.3s ease;">
+                <i class="fa-solid ${isWatched ? 'fa-check-double' : 'fa-check'}"></i>
+                ${isWatched ? '視聴済み ✅' : '視聴済みにする'}
+              </button>` : ''}
             <button onclick="event.stopPropagation();openFeedbackModal('${v.id}','${(v.title||'').replace(/'/g,'')}')" style="
               padding:10px 14px;background:rgba(255,255,255,0.2);
               backdrop-filter:blur(4px);color:white;border:none;
@@ -5406,35 +5478,9 @@ async function likeVideo(videoId, btn) {
   } catch(e) {}
 }
 
-async function handleMarkWatched(videoId, btn) {
+async function handleMarkWatched(videoId, taskId, btn) {
   const uid = currentUser?.uid || '';
   if (!uid) { showToast('ログインが必要です', 'error'); return; }
-
-  // 既に視聴済みか確認
-  let alreadyWatched = false;
-  try {
-    if (window._getDocs && window._query) {
-      const dupQ = window._query(
-        window._collection(window._db, 'watchHistory'),
-        window._where('userId', '==', uid),
-        window._where('videoId', '==', videoId)
-      );
-      const dupSnap = await window._getDocs(dupQ);
-      alreadyWatched = dupSnap.size > 0;
-    }
-  } catch(e) {}
-
-  if (alreadyWatched) {
-    if (btn) {
-      btn.innerHTML = '<i class="fa-solid fa-check-double"></i> チェック済み ✅';
-      btn.style.background = 'rgba(255,255,255,0.15)';
-      btn.style.border = '2px solid rgba(255,255,255,0.4)';
-      btn.style.color = 'rgba(255,255,255,0.6)';
-      btn.style.pointerEvents = 'none';
-    }
-    showToast('すでに視聴済みです');
-    return;
-  }
 
   // 即時UI変化
   if (btn) {
@@ -5442,11 +5488,10 @@ async function handleMarkWatched(videoId, btn) {
     btn.style.pointerEvents = 'none';
   }
 
-  await markWatched(videoId);
+  await markWatched(videoId, taskId);
 
-  // 完了後にボタンを更新
   if (btn) {
-    btn.innerHTML = '<i class="fa-solid fa-check-double"></i> チェック済み ✅';
+    btn.innerHTML = '<i class="fa-solid fa-check-double"></i> 視聴済み ✅';
     btn.style.background = 'rgba(255,255,255,0.2)';
     btn.style.border = '2px solid rgba(255,255,255,0.5)';
     btn.style.color = 'white';
@@ -5457,7 +5502,7 @@ async function handleMarkWatched(videoId, btn) {
   }
 }
 
-async function markWatched(videoId) {
+async function markWatched(videoId, taskId) {
   const uid = currentUser?.uid || '';
   if (!uid) return;
   const companyId = currentUser?.companyId || 'company_001';
@@ -5487,30 +5532,24 @@ async function markWatched(videoId) {
       );
     }
 
-    // タスクとして割り当てられている場合はstatusをwatchedに更新
-    let taskUpdated = false;
-    if (uid && window._getDocs && window._query) {
+    // taskIdが直接渡された場合はそれを使う
+    if (taskId && window._updateDoc && window._doc) {
       try {
-        const q = window._query(
-          window._collection(window._db, 'taskAssignments'),
-          window._where('assignedTo', '==', uid),
-          window._where('videoId', '==', videoId),
-          window._where('status', '==', 'unwatched')
+        await window._updateDoc(
+          window._doc(window._db, 'taskAssignments', taskId),
+          { status: 'watched', watchedAt: window._serverTimestamp() }
         );
-        const snap = await window._getDocs(q);
-        for (const d of snap.docs) {
-          await window._updateDoc(
-            window._doc(window._db, 'taskAssignments', d.id),
-            { status: 'watched', watchedAt: window._serverTimestamp() }
-          );
-          taskUpdated = true;
-        }
-        // 店長へ通知（タスクが更新されたときのみ）
-        if (taskUpdated && currentUser?.name) {
-          const videoSnap = await window._getDoc(
-            window._doc(window._db, 'videos', videoId)
-          ).catch(() => null);
-          const videoTitle = videoSnap?.data()?.title || '動画';
+
+        // 店長へ通知
+        if (currentUser?.name) {
+          let videoTitle = '動画';
+          try {
+            const videoSnap = await window._getDoc(
+              window._doc(window._db, 'videos', videoId)
+            );
+            if (videoSnap.exists()) videoTitle = videoSnap.data().title || '動画';
+          } catch(e) {}
+
           await window._addDoc(
             window._collection(window._db, 'notifications'), {
               type: 'task_watched',
@@ -5524,18 +5563,33 @@ async function markWatched(videoId) {
           );
         }
       } catch(e) {}
+    } else {
+      // taskIdがない場合は既存のクエリで検索
+      if (uid && window._getDocs && window._query) {
+        try {
+          const q = window._query(
+            window._collection(window._db, 'taskAssignments'),
+            window._where('assignedTo', '==', uid),
+            window._where('videoId', '==', videoId),
+            window._where('status', '==', 'unwatched')
+          );
+          const snap = await window._getDocs(q);
+          for (const d of snap.docs) {
+            await window._updateDoc(
+              window._doc(window._db, 'taskAssignments', d.id),
+              { status: 'watched', watchedAt: window._serverTimestamp() }
+            );
+          }
+        } catch(e) {}
+      }
     }
 
     showToast('視聴済みにしました ✅');
 
     // タスク画面が表示中なら更新
-    if (currentPage === 'tasks' && taskUpdated) {
-      await loadTaskSummary();
-      await loadMyTasks(currentTaskFilter);
-    }
-    // スキル画面が表示中なら更新
-    if (currentPage === 'skills') {
-      await loadSkillStats();
+    if (currentPage === 'tasks') {
+      const content = document.getElementById('main-content');
+      if (content) await renderTasks(content);
     }
 
   } catch(e) {
@@ -5667,6 +5721,13 @@ async function loadNotifications() {
           <div style="font-size:11px;color:var(--text-muted);">
             ${n.createdAt?.toDate?.()?.toLocaleDateString('ja-JP') || ''}
           </div>
+          ${n.type === 'new_task' || n.type === 'task' ? `
+            <button onclick="closeNotificationDrawer();navigateStaff('tasks')" style="
+              margin-top:6px;padding:4px 10px;background:var(--primary);color:white;
+              border:none;border-radius:var(--radius-sm);font-size:11px;
+              font-weight:600;cursor:pointer;font-family:var(--font);">
+              タスクを確認する
+            </button>` : ''}
         </div>
       </div>`;
   }).join('');
