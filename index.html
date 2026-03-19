@@ -1608,13 +1608,29 @@ function setupStaffLayout() {
   setTimeout(async () => {
     try {
       if (window._getDocs && window._query) {
+        const uid = currentUser?.uid || '';
+        const role = currentUser?.role || 'staff';
+        const storeId = currentUser?.storeId || '';
+        const companyId = currentUser?.companyId || 'company_001';
+
         const q = window._query(
           window._collection(window._db, 'notifications'),
-          window._where('companyId', '==', currentUser?.companyId || 'company_001'),
+          window._where('companyId', '==', companyId),
           window._where('read', '==', false)
         );
         const snap = await window._getDocs(q);
-        if (snap.size > 0) updateNotificationBadge(snap.size);
+        let count = 0;
+        snap.forEach(d => {
+          const data = d.data();
+          const isPersonal = data.targetUserId === uid;
+          const isStoreMatch = data.targetStoreId === storeId;
+          const isAllStore = !data.targetStoreId || data.targetStoreId === null;
+          const isRoleMatch = data.targetRole === 'all' || data.targetRole === role;
+          if (isPersonal || (isRoleMatch && isAllStore) || (isRoleMatch && isStoreMatch)) {
+            count++;
+          }
+        });
+        if (count > 0) updateNotificationBadge(count);
       }
     } catch(e) {}
   }, 2000);
@@ -5607,14 +5623,30 @@ async function likeVideo(videoId, btn) {
   const uid = currentUser?.uid || '';
   if (!uid) { showToast('ログインが必要です', 'error'); return; }
 
-  // 即時UI更新（Firestore完了を待たない）
+  // 重複チェック
+  try {
+    if (window._getDocs && window._query) {
+      const dupQ = window._query(
+        window._collection(window._db, 'userLikes'),
+        window._where('userId', '==', uid),
+        window._where('videoId', '==', videoId)
+      );
+      const dupSnap = await window._getDocs(dupQ);
+      if (dupSnap.size > 0) {
+        showToast('すでにいいねしています');
+        return;
+      }
+    }
+  } catch(e) {}
+
+  // 即時UI更新
   const countEl = btn?.querySelector('span');
   const iconEl = btn?.querySelector('i');
   if (countEl) countEl.textContent = parseInt(countEl.textContent || 0) + 1;
   if (iconEl) iconEl.style.color = '#FF3B5C';
   if (btn) btn.style.background = 'rgba(255,59,92,0.35)';
+  if (btn) btn.style.pointerEvents = 'none';
 
-  // ハートアニメーション
   if (btn) {
     btn.style.transform = 'scale(1.3)';
     setTimeout(() => { btn.style.transform = 'scale(1)'; }, 200);
@@ -6558,22 +6590,34 @@ onAuthStateChanged(auth, async (firebaseUser) => {
         currentUser = { ...userData, uid: firebaseUser.uid };
         initApp(invite.role);
       } else {
-        // 新規ユーザー・招待なし → 本部として登録（開発用）
-        const userData = {
-          uid: firebaseUser.uid,
-          name: firebaseUser.displayName || '未設定',
-          email: firebaseUser.email || '',
-          photoURL: firebaseUser.photoURL || '',
-          role: 'headquarters',
-          companyId: 'company_001',
-          storeId: null,
-          storeName: '本部',
-          createdAt: serverTimestamp(),
-          lastLoginAt: serverTimestamp()
-        };
-        await setDoc(doc(db, "users", firebaseUser.uid), userData);
-        currentUser = { ...userData, uid: firebaseUser.uid };
-        initApp('headquarters');
+        // 招待リンクなし・未登録ユーザー → アクセス拒否
+        await signOut(auth);
+        const screen = document.getElementById('login-screen');
+        screen.style.cssText = `
+          display:flex;align-items:center;justify-content:center;
+          min-height:100vh;background:var(--sidebar-bg);padding:24px;`;
+        screen.innerHTML = `
+          <div style="background:white;border-radius:var(--radius-xl);
+            padding:48px 40px;max-width:400px;width:100%;
+            box-shadow:var(--shadow-lg);text-align:center;">
+            <i class="fa-solid fa-lock"
+              style="font-size:48px;color:var(--danger);
+              margin-bottom:16px;display:block;"></i>
+            <div style="font-size:20px;font-weight:700;margin-bottom:8px;">
+              アクセスできません
+            </div>
+            <div style="font-size:13px;color:var(--text-muted);margin-bottom:24px;">
+              招待リンクからアクセスしてください。<br>
+              すでに登録済みの方は登録時のGoogleアカウントでログインしてください。
+            </div>
+            <button onclick="location.reload()" style="
+              width:100%;padding:12px;background:var(--primary);color:white;
+              border:none;border-radius:var(--radius-md);font-family:var(--font);
+              font-size:14px;font-weight:700;cursor:pointer;">
+              戻る
+            </button>
+          </div>`;
+        document.getElementById('app-screen').style.display = 'none';
       }
     }
   } catch(e) {
