@@ -4789,6 +4789,8 @@ async function saveVideoEdit(videoId) {
       await window._addDoc(
         window._collection(window._db, 'notifications'), {
           type: 'video_updated',
+          videoId: videoId,
+          videoChannel: channel || null,
           message: `【動画更新】「${title}」が更新されました`,
           companyId,
           targetRole: 'all',
@@ -5795,29 +5797,39 @@ function closeNotificationDrawer() {
   if (overlay) overlay.style.display = 'none';
 }
 
-function handleNotificationTap(type) {
+function handleNotificationTap(type, videoId, videoChannel) {
   closeNotificationDrawer();
 
   const role = currentUser?.role || 'staff';
 
   if (type === 'new_task') {
-    // タスク通知 → タスクタブ（スタッフのみ）
     if (role === 'staff') navigateStaff('tasks');
+    return;
+  }
 
-  } else if (type === 'new_video' || type === 'video_updated') {
-    // 動画投稿・更新通知 → 全ロールでフィード/動画管理へ
+  if (type === 'video_request') {
+    if (role === 'headquarters') navigateHQ('videos');
+    if (role === 'manager') navigateManager('upload');
+    return;
+  }
+
+  if (type === 'new_video' || type === 'video_updated') {
     if (role === 'staff') {
-      navigateStaff('feed');
+      if (videoId) {
+        if (videoChannel === 'store') { currentChannel = 'store'; }
+        else if (videoChannel === 'pr') { currentChannel = 'pr'; }
+        else { currentChannel = 'common'; }
+        window._pendingTaskVideoId = videoId;
+        navigateStaff('feed');
+      } else {
+        navigateStaff('feed');
+      }
     } else if (role === 'manager') {
-      navigateManager('storestock');
+      if (videoChannel === 'store') navigateManager('storestock');
+      else navigateManager('upload');
     } else if (role === 'headquarters') {
       navigateHQ('videos');
     }
-
-  } else if (type === 'video_request') {
-    // 申請通知 → 本部の動画管理へ
-    if (role === 'headquarters') navigateHQ('videos');
-    if (role === 'manager') navigateManager('upload');
   }
 }
 
@@ -5917,9 +5929,10 @@ async function loadNotifications() {
     })();
 
     return `
-      <div style="padding:12px;
+      <div onclick="handleNotificationTap('${n.type}','${n.videoId||''}','${n.videoChannel||''}')"
+        style="padding:12px;
         border-bottom:1px solid var(--border-light,#F3F4F6);
-        display:flex;gap:10px;
+        display:flex;gap:10px;cursor:pointer;
         ${n.read ? 'opacity:0.5;' : 'background:white;'}">
         <div style="width:36px;height:36px;border-radius:50%;
           background:${color}20;display:flex;align-items:center;
@@ -6334,10 +6347,11 @@ async function submitVideo() {
     };
 
     if (window._addDoc && window._collection) {
-      await window._addDoc(
+      const videoRef = await window._addDoc(
         window._collection(window._db, 'videos'),
         videoData
       );
+      const newVideoId = videoRef.id;
 
       const notifChannel = channel || 'common';
       const uploaderStoreId = currentUser?.storeId || '';
@@ -6348,6 +6362,8 @@ async function submitVideo() {
         await window._addDoc(
           window._collection(window._db, 'notifications'), {
             type: 'video_request',
+            videoId: newVideoId,
+            videoChannel: notifChannel,
             message: `【動画申請】${currentUser?.storeName||''}の${uploaderName}が「${title}」を申請しました`,
             companyId,
             targetRole: 'headquarters',
@@ -6364,6 +6380,8 @@ async function submitVideo() {
         await window._addDoc(
           window._collection(window._db, 'notifications'), {
             type: 'new_video',
+            videoId: newVideoId,
+            videoChannel: notifChannel,
             message: `【店舗ストック更新】${uploaderName}が「${title}」を投稿しました`,
             companyId,
             targetRole: 'all',
@@ -6377,6 +6395,8 @@ async function submitVideo() {
         await window._addDoc(
           window._collection(window._db, 'notifications'), {
             type: 'new_video',
+            videoId: newVideoId,
+            videoChannel: notifChannel,
             message: `【新着動画】${uploaderName}が「${title}」を投稿しました`,
             companyId,
             targetRole: 'all',
