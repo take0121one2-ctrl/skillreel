@@ -9,7 +9,9 @@
       "Bash(wc:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(where python:*)",
+      "Bash(where python3:*)"
     ]
   }
 }
