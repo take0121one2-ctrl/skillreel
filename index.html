@@ -3146,7 +3146,7 @@ async function sendTasks() {
       }
     }
 
-    // スタッフへ通知
+    // 送り先スタッフのみに個別通知
     for (const uid of staffIds) {
       if (window._addDoc) {
         await window._addDoc(
@@ -3155,6 +3155,8 @@ async function sendTasks() {
             message: `${currentUser?.name || '店長'}から新しいタスクが届きました`,
             companyId: currentUser?.companyId || 'company_001',
             targetUserId: uid,
+            targetRole: 'staff',
+            targetStoreId: currentUser?.storeId || '',
             read: false,
             createdAt: window._serverTimestamp()
           }
@@ -4787,9 +4789,10 @@ async function saveVideoEdit(videoId) {
       await window._addDoc(
         window._collection(window._db, 'notifications'), {
           type: 'video_updated',
-          message: `動画「${title}」が更新されました`,
+          message: `【動画更新】「${title}」が更新されました`,
           companyId,
           targetRole: 'all',
+          targetStoreId: null,
           read: false,
           createdAt: window._serverTimestamp()
         }
@@ -5686,29 +5689,6 @@ async function markWatched(videoId, taskId) {
           window._doc(window._db, 'taskAssignments', taskId),
           { status: 'watched', watchedAt: window._serverTimestamp() }
         );
-
-        // 店長へ通知
-        if (currentUser?.name) {
-          let videoTitle = '動画';
-          try {
-            const videoSnap = await window._getDoc(
-              window._doc(window._db, 'videos', videoId)
-            );
-            if (videoSnap.exists()) videoTitle = videoSnap.data().title || '動画';
-          } catch(e) {}
-
-          await window._addDoc(
-            window._collection(window._db, 'notifications'), {
-              type: 'task_watched',
-              message: `${currentUser.name}が「${videoTitle}」を視聴しました`,
-              companyId,
-              targetRole: 'manager',
-              storeId,
-              read: false,
-              createdAt: window._serverTimestamp()
-            }
-          );
-        }
       } catch(e) {}
     } else {
       // taskIdがない場合は既存のクエリで検索
@@ -5819,74 +5799,121 @@ async function loadNotifications() {
   const listEl = document.getElementById('notification-list');
   if (!listEl) return;
 
+  const uid = currentUser?.uid || '';
+  const role = currentUser?.role || 'staff';
+  const storeId = currentUser?.storeId || '';
+  const companyId = currentUser?.companyId || 'company_001';
+
   let notifications = [];
   try {
     if (window._getDocs && window._query) {
       const q = window._query(
         window._collection(window._db, 'notifications'),
-        window._where('companyId', '==', currentUser?.companyId || 'company_001')
+        window._where('companyId', '==', companyId)
       );
       const snap = await window._getDocs(q);
-      snap.forEach(d => notifications.push({ id: d.id, ...d.data() }));
+      snap.forEach(d => {
+        const data = { id: d.id, ...d.data() };
+
+        // フィルタリング条件
+        const isPersonal = data.targetUserId === uid;
+        const isStoreMatch = data.targetStoreId === storeId;
+        const isAllStore = !data.targetStoreId || data.targetStoreId === null;
+        const isRoleMatch = data.targetRole === 'all' || data.targetRole === role;
+
+        if (
+          isPersonal ||
+          (isRoleMatch && isAllStore) ||
+          (isRoleMatch && isStoreMatch)
+        ) {
+          notifications.push(data);
+        }
+      });
     }
   } catch(e) {}
 
+  // 新しい順に並び替え
+  notifications.sort((a, b) => {
+    const aTime = a.createdAt?.toDate?.()?.getTime() || 0;
+    const bTime = b.createdAt?.toDate?.()?.getTime() || 0;
+    return bTime - aTime;
+  });
+
   if (notifications.length === 0) {
     listEl.innerHTML = `
-      <div style="padding:40px;text-align:center;color:var(--text-muted);font-size:13px;">
-        <i class="fa-solid fa-bell-slash" style="font-size:32px;margin-bottom:8px;display:block;"></i>
+      <div style="padding:40px;text-align:center;
+        color:var(--text-muted);font-size:13px;">
+        <i class="fa-solid fa-bell-slash"
+          style="font-size:32px;margin-bottom:8px;display:block;"></i>
         通知はありません
       </div>`;
     return;
   }
 
   const typeIcons = {
-    video_request: 'fa-video',
-    task: 'fa-list-check',
-    feedback: 'fa-comment-alt',
-    default: 'fa-bell'
+    new_video:     'fa-video',
+    video_updated: 'fa-pencil',
+    new_task:      'fa-list-check',
+    task_watched:  'fa-eye',
+    feedback:      'fa-comment-alt',
+    default:       'fa-bell'
   };
   const typeColors = {
-    video_request: 'var(--primary)',
-    task: 'var(--success)',
-    feedback: 'var(--accent)',
-    default: 'var(--info)'
+    new_video:     'var(--primary)',
+    video_updated: 'var(--info)',
+    new_task:      'var(--success)',
+    task_watched:  'var(--warning)',
+    feedback:      'var(--accent)',
+    default:       'var(--text-muted)'
   };
 
   listEl.innerHTML = notifications.map(n => {
     const icon = typeIcons[n.type] || typeIcons.default;
     const color = typeColors[n.type] || typeColors.default;
+
+    // 時刻表示
+    const timeStr = (() => {
+      if (!n.createdAt?.toDate) return '';
+      const d = n.createdAt.toDate();
+      const now = new Date();
+      const diff = now - d;
+      const mins = Math.floor(diff / 60000);
+      const hours = Math.floor(diff / 3600000);
+      const days = Math.floor(diff / 86400000);
+      if (mins < 1) return 'たった今';
+      if (mins < 60) return mins + '分前';
+      if (hours < 24) return hours + '時間前';
+      if (days < 7) return days + '日前';
+      return d.toLocaleDateString('ja-JP', {
+        month: 'numeric', day: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    })();
+
     return `
-      <div style="padding:12px;border-bottom:1px solid var(--border-light,#F3F4F6);
-        display:flex;gap:10px;${n.read ? 'opacity:0.6;' : ''}">
-        <div style="width:36px;height:36px;border-radius:50%;background:${color}20;
-          display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-          <i class="fa-solid ${icon}" style="color:${color};font-size:14px;"></i>
+      <div style="padding:12px;
+        border-bottom:1px solid var(--border-light,#F3F4F6);
+        display:flex;gap:10px;
+        ${n.read ? 'opacity:0.5;' : 'background:white;'}">
+        <div style="width:36px;height:36px;border-radius:50%;
+          background:${color}20;display:flex;align-items:center;
+          justify-content:center;flex-shrink:0;">
+          <i class="fa-solid ${icon}"
+            style="color:${color};font-size:14px;"></i>
         </div>
         <div style="flex:1;">
-          <div style="font-size:13px;margin-bottom:4px;">${n.message||''}</div>
-          <div style="font-size:11px;color:var(--text-muted);">
-            ${n.createdAt?.toDate ? (() => {
-              const d = n.createdAt.toDate();
-              const now = new Date();
-              const diff = now - d;
-              const mins = Math.floor(diff / 60000);
-              const hours = Math.floor(diff / 3600000);
-              const days = Math.floor(diff / 86400000);
-              if (mins < 1) return 'たった今';
-              if (mins < 60) return mins + '分前';
-              if (hours < 24) return hours + '時間前';
-              if (days < 7) return days + '日前';
-              return d.toLocaleDateString('ja-JP', {
-                month: 'numeric', day: 'numeric',
-                hour: '2-digit', minute: '2-digit'
-              });
-            })() : ''}
+          <div style="font-size:13px;margin-bottom:4px;
+            font-weight:${n.read ? '400' : '600'};">
+            ${n.message || ''}
           </div>
-          ${n.type === 'new_task' || n.type === 'task' ? `
-            <button onclick="closeNotificationDrawer();navigateStaff('tasks')" style="
-              margin-top:6px;padding:4px 10px;background:var(--primary);color:white;
-              border:none;border-radius:var(--radius-sm);font-size:11px;
+          <div style="font-size:11px;color:var(--text-muted);">
+            ${timeStr}
+          </div>
+          ${n.type === 'new_task' ? `
+            <button onclick="closeNotificationDrawer();navigateStaff('tasks')"
+              style="margin-top:6px;padding:4px 10px;
+              background:var(--primary);color:white;border:none;
+              border-radius:var(--radius-sm);font-size:11px;
               font-weight:600;cursor:pointer;font-family:var(--font);">
               タスクを確認する
             </button>` : ''}
@@ -5894,7 +5921,7 @@ async function loadNotifications() {
       </div>`;
   }).join('');
 
-  // 未読件数をベルバッジに反映
+  // 未読件数をバッジに反映
   const unread = notifications.filter(n => !n.read).length;
   updateNotificationBadge(unread);
 }
@@ -6293,21 +6320,45 @@ async function submitVideo() {
             message: `${currentUser?.storeName||''}の${currentUser?.name||''}から動画申請：「${title}」`,
             companyId,
             targetRole: 'headquarters',
+            targetStoreId: null,
             read: false,
             createdAt: window._serverTimestamp()
           }
         );
       } else {
-        await window._addDoc(
-          window._collection(window._db, 'notifications'), {
-            type: 'new_video',
-            message: `新しい動画が公開されました：「${title}」`,
-            companyId,
-            targetRole: 'all',
-            read: false,
-            createdAt: window._serverTimestamp()
+        // 通知送信
+        if (window._addDoc && window._collection) {
+          const channel = document.getElementById('up-channel')?.value || 'common';
+          const storeId = currentUser?.storeId || '';
+
+          if (channel === 'store') {
+            // 店舗ストック：同じstoreIdのユーザーのみ
+            await window._addDoc(
+              window._collection(window._db, 'notifications'), {
+                type: 'new_video',
+                message: `【店舗ストック更新】${currentUser?.name || ''}が「${title}」を投稿しました`,
+                companyId,
+                targetStoreId: storeId,
+                targetRole: 'all',
+                read: false,
+                createdAt: window._serverTimestamp()
+              }
+            );
+          } else {
+            // 全店共通・広報：全ロールに通知
+            await window._addDoc(
+              window._collection(window._db, 'notifications'), {
+                type: 'new_video',
+                message: `【新着動画】${currentUser?.name || ''}が「${title}」を投稿しました`,
+                companyId,
+                targetRole: 'all',
+                targetStoreId: null,
+                read: false,
+                createdAt: window._serverTimestamp()
+              }
+            );
           }
-        );
+        }
       }
     }
 
