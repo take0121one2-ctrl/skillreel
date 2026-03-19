@@ -1422,7 +1422,7 @@
 <body>
 
   <!-- ログイン画面 -->
-  <div id="login-screen" style="display:flex; align-items:center; justify-content:center; min-height:100vh; background:var(--sidebar-bg); padding:24px;"></div>
+  <div id="login-screen" style="display:none;"></div>
 
   <!-- アプリ画面 -->
   <div id="app-screen" style="display:none;"></div>
@@ -1458,9 +1458,11 @@ function showToast(msg, type='success') {
 }
 
 function showLoginScreen() {
+  const screen = document.getElementById('login-screen');
+  screen.style.display = 'block';
+
   const urlParams = new URLSearchParams(window.location.search);
   const token = urlParams.get('invite');
-  const screen = document.getElementById('login-screen');
   document.getElementById('app-screen').style.display = 'none';
 
   // 招待リンクの場合はそのままログイン画面
@@ -1497,7 +1499,7 @@ function showLoginScreen() {
   // 通常アクセスはLPを表示
   screen.style.cssText = `
     display:block;min-height:100vh;
-    background:white;padding:0;margin:0;`;
+    background:white;padding:0;margin:0;overflow-y:auto;`;
 
   screen.innerHTML = `
     <style>
