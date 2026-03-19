@@ -3686,7 +3686,15 @@ async function loadStoreList() {
         window._where('companyId', '==', currentUser?.companyId || 'company_001')
       );
       const snap = await window._getDocs(q);
-      snap.forEach(d => stores.push({ id: d.id, ...d.data() }));
+      snap.forEach(d => {
+        const data = { id: d.id, ...d.data() };
+        // undefinedや不正なデータを除外
+        if (data.storeName && data.storeName !== 'undefined' &&
+            data.storeId && data.storeId !== 'undefined' &&
+            !data._deleted) {
+          stores.push(data);
+        }
+      });
     }
   } catch(e) {}
 
@@ -4882,12 +4890,66 @@ function renderHQSettings(content) {
           font-size:13px;font-weight:700;cursor:pointer;">
           テスト店舗を登録する（2店舗）
         </button>
+        <button onclick="cleanupUndefinedStores()" style="
+          padding:10px 20px;background:var(--danger);color:white;border:none;
+          border-radius:var(--radius-sm);font-family:var(--font);
+          font-size:13px;font-weight:700;cursor:pointer;margin-top:8px;">
+          🗑️ undefinedの店舗を削除する
+        </button>
         <div id="test-store-result" style="margin-top:8px;"></div>
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:var(--radius-md);
+        padding:16px;margin-top:12px;">
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px;">
+          🔧 既存動画のstoreIdを修正する
+        </div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">
+          store_001（五反田店）の店舗ストック動画として
+          既存の動画データを更新します。
+        </div>
+        <button onclick="fixVideoStoreIds()" style="
+          padding:10px 20px;background:var(--info);color:white;border:none;
+          border-radius:var(--radius-sm);font-family:var(--font);
+          font-size:13px;font-weight:700;cursor:pointer;">
+          既存の店舗ストック動画を修正する
+        </button>
+        <div id="fix-video-result" style="margin-top:8px;"></div>
       </div>
     </div>`;
 }
 
 async function registerTestStores() {
+  const resultEl = document.getElementById('test-store-result');
+
+  // 既存の店舗を確認（重複登録防止）
+  try {
+    if (window._getDocs && window._query) {
+      const q = window._query(
+        window._collection(window._db, 'stores'),
+        window._where('companyId', '==', currentUser?.companyId || 'company_001')
+      );
+      const existing = await window._getDocs(q);
+      const validStores = [];
+      existing.forEach(d => {
+        const data = d.data();
+        if (data.storeName && data.storeName !== 'undefined' &&
+            data.storeId && data.storeId !== 'undefined') {
+          validStores.push(data.storeName);
+        }
+      });
+      if (validStores.length > 0) {
+        if (resultEl) {
+          resultEl.innerHTML = `
+            <div style="color:var(--warning);font-size:13px;font-weight:600;">
+              ⚠️ すでに店舗が登録されています：${validStores.join('、')}
+            </div>`;
+        }
+        return;
+      }
+    }
+  } catch(e) {}
+
   const testStores = [
     {
       storeName: '五反田店',
@@ -4911,14 +4973,18 @@ async function registerTestStores() {
         await window._addDoc(
           window._collection(window._db, 'stores'),
           {
-            ...store,
+            storeName: store.storeName,
+            storeId: store.storeId,
+            address: store.address,
+            phone: store.phone,
+            companyId: store.companyId,
             createdAt: window._serverTimestamp(),
             updatedAt: window._serverTimestamp()
           }
         );
       }
     }
-    const resultEl = document.getElementById('test-store-result');
+
     if (resultEl) {
       resultEl.innerHTML = `
         <div style="color:var(--success);font-size:13px;font-weight:600;">
@@ -4927,8 +4993,77 @@ async function registerTestStores() {
         </div>`;
     }
     showToast('テスト店舗を登録しました ✅');
+    navigateHQ('stores');
   } catch(e) {
     showToast('登録に失敗しました: ' + e.message, 'error');
+  }
+}
+
+async function cleanupUndefinedStores() {
+  try {
+    if (!window._getDocs || !window._query) return;
+    const q = window._query(
+      window._collection(window._db, 'stores'),
+      window._where('companyId', '==', currentUser?.companyId || 'company_001')
+    );
+    const snap = await window._getDocs(q);
+    let deleted = 0;
+    for (const d of snap.docs) {
+      const data = d.data();
+      if (!data.storeName || data.storeName === 'undefined' ||
+          !data.storeId || data.storeId === 'undefined') {
+        if (window._updateDoc) {
+          await window._updateDoc(
+            window._doc(window._db, 'stores', d.id),
+            { _deleted: true }
+          );
+        }
+        deleted++;
+      }
+    }
+    showToast(`${deleted}件の不正な店舗データを削除しました`);
+    loadStoreList();
+  } catch(e) {
+    showToast('削除に失敗しました: ' + e.message, 'error');
+  }
+}
+
+async function fixVideoStoreIds() {
+  const resultEl = document.getElementById('fix-video-result');
+  try {
+    if (!window._getDocs || !window._query) return;
+
+    const q = window._query(
+      window._collection(window._db, 'videos'),
+      window._where('companyId', '==', currentUser?.companyId || 'company_001'),
+      window._where('channel', '==', 'store')
+    );
+    const snap = await window._getDocs(q);
+    let fixed = 0;
+
+    for (const d of snap.docs) {
+      const data = d.data();
+      if (!data.storeId || data.storeId === null) {
+        await window._updateDoc(
+          window._doc(window._db, 'videos', d.id),
+          {
+            storeId: 'store_001',
+            storeName: '五反田店'
+          }
+        );
+        fixed++;
+      }
+    }
+
+    if (resultEl) {
+      resultEl.innerHTML = `
+        <div style="color:var(--success);font-size:13px;font-weight:600;">
+          ✅ ${fixed}件の動画データを修正しました
+        </div>`;
+    }
+    showToast(`${fixed}件の動画を修正しました ✅`);
+  } catch(e) {
+    showToast('修正に失敗しました: ' + e.message, 'error');
   }
 }
 
