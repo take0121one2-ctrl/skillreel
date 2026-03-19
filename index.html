@@ -4477,7 +4477,10 @@ async function loadHQVideos(filter) {
         ...constraints
       );
       const snap = await window._getDocs(q);
-      snap.forEach(d => videos.push({ id: d.id, ...d.data() }));
+      snap.forEach(d => {
+        const data = { id: d.id, ...d.data() };
+        if (!data.deleted) videos.push(data);
+      });
     }
   } catch(e) {}
 
@@ -4540,6 +4543,13 @@ async function loadHQVideos(filter) {
                     border-radius:var(--radius-sm);background:white;
                     font-family:var(--font);font-size:11px;cursor:pointer;">
                     ${v.published ? '非公開' : '公開'}
+                  </button>
+                  <button onclick="confirmDeleteVideo('${v.id}','${(v.title||'').replace(/'/g,'')}')" style="
+                    padding:6px 8px;border:1px solid var(--danger);
+                    border-radius:var(--radius-sm);background:white;
+                    color:var(--danger);font-family:var(--font);
+                    font-size:11px;cursor:pointer;">
+                    <i class="fa-solid fa-trash"></i>
                   </button>
                 </div>
               </div>
@@ -4793,6 +4803,90 @@ async function togglePublish(videoId, publish) {
     loadHQVideos('all');
   } catch(e) {
     showToast('更新に失敗しました', 'error');
+  }
+}
+
+function confirmDeleteVideo(videoId, videoTitle) {
+  let modal = document.getElementById('delete-video-modal');
+  if (modal) modal.remove();
+
+  modal = document.createElement('div');
+  modal.id = 'delete-video-modal';
+  modal.style.cssText = `
+    position:fixed;top:0;left:0;width:100%;height:100%;
+    background:rgba(0,0,0,0.5);z-index:2000;
+    display:flex;align-items:center;justify-content:center;
+    padding:16px;`;
+
+  modal.innerHTML = `
+    <div style="background:white;border-radius:var(--radius-lg);
+      width:100%;max-width:400px;padding:24px;
+      box-shadow:var(--shadow-lg);">
+      <div style="text-align:center;margin-bottom:20px;">
+        <div style="width:56px;height:56px;border-radius:50%;
+          background:var(--danger-light);display:flex;align-items:center;
+          justify-content:center;margin:0 auto 12px;">
+          <i class="fa-solid fa-trash"
+            style="color:var(--danger);font-size:22px;"></i>
+        </div>
+        <div style="font-size:16px;font-weight:700;margin-bottom:8px;">
+          動画を削除しますか？
+        </div>
+        <div style="font-size:13px;color:var(--text-secondary);
+          padding:0 8px;">
+          「${videoTitle}」を削除します。<br>
+          この操作は取り消せません。
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="document.getElementById('delete-video-modal').remove()" style="
+          flex:1;padding:12px;background:white;
+          border:1.5px solid var(--border);border-radius:var(--radius-md);
+          font-family:var(--font);font-size:14px;
+          color:var(--text-secondary);cursor:pointer;">
+          キャンセル
+        </button>
+        <button onclick="deleteVideo('${videoId}')" style="
+          flex:1;padding:12px;background:var(--danger);color:white;
+          border:none;border-radius:var(--radius-md);
+          font-family:var(--font);font-size:14px;
+          font-weight:700;cursor:pointer;">
+          削除する
+        </button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(modal);
+}
+
+async function deleteVideo(videoId) {
+  const modal = document.getElementById('delete-video-modal');
+  const btn = modal?.querySelector('button:last-child');
+  if (btn) { btn.textContent = '削除中...'; btn.disabled = true; }
+
+  try {
+    if (window._doc && window._updateDoc) {
+      // 物理削除ではなく非公開+削除フラグを立てる
+      await window._updateDoc(
+        window._doc(window._db, 'videos', videoId),
+        {
+          published: false,
+          deleted: true,
+          deletedAt: window._serverTimestamp(),
+          deletedBy: currentUser?.uid || ''
+        }
+      );
+    }
+    modal?.remove();
+    showToast('動画を削除しました');
+
+    // 動画管理画面を更新
+    const content = document.getElementById('main-content');
+    if (content) renderHQVideos(content);
+
+  } catch(e) {
+    showToast('削除に失敗しました: ' + e.message, 'error');
+    if (btn) { btn.textContent = '削除する'; btn.disabled = false; }
   }
 }
 
