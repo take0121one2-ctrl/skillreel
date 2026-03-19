@@ -2123,6 +2123,7 @@ function setupManagerLayout() {
             ['dashboard','fa-th-large','ダッシュボード'],
             ['upload','fa-upload','動画投稿'],
             ['tasks','fa-tasks','タスク管理'],
+            ['storestock','fa-film','店舗ストック'],
             ['staff','fa-users','スタッフ一覧'],
             ['invite','fa-user-plus','招待'],
           ].map(([p,icon,label]) => `
@@ -2211,7 +2212,8 @@ function navigateManager(page) {
   }
   const titles = {
     dashboard:'ダッシュボード', upload:'動画投稿',
-    tasks:'タスク管理', staff:'スタッフ一覧', invite:'招待'
+    tasks:'タスク管理', storestock:'店舗ストック動画',
+    staff:'スタッフ一覧', invite:'招待'
   };
   const titleEl = document.getElementById('page-title');
   if (titleEl) titleEl.textContent = titles[page] || '';
@@ -2219,8 +2221,156 @@ function navigateManager(page) {
   if (page === 'dashboard') renderManagerDashboard(content);
   else if (page === 'upload') renderManagerUpload(content);
   else if (page === 'tasks') renderManagerTasks(content);
+  else if (page === 'storestock') renderManagerStoreStock(content);
   else if (page === 'staff') renderManagerStaff(content);
   else if (page === 'invite') renderManagerInvite(content);
+}
+
+async function renderManagerStoreStock(content) {
+  content.innerHTML = `
+    <div style="font-size:18px;font-weight:700;margin-bottom:8px;">
+      店舗ストック動画
+    </div>
+    <div style="font-size:13px;color:var(--text-secondary);margin-bottom:20px;">
+      ${currentUser?.storeName || '自店舗'}のオリジナル動画一覧です。
+      応援スタッフへの共有にもご活用ください。
+    </div>
+    <div id="store-stock-list">
+      <div style="text-align:center;padding:40px;color:var(--text-muted);">
+        <i class="fa-solid fa-spinner fa-spin" style="font-size:24px;"></i>
+      </div>
+    </div>`;
+
+  let videos = [];
+  try {
+    if (window._getDocs && window._query) {
+      const q = window._query(
+        window._collection(window._db, 'videos'),
+        window._where('storeId', '==', currentUser?.storeId || 'store_001'),
+        window._where('channel', '==', 'store'),
+        window._where('published', '==', true)
+      );
+      const snap = await window._getDocs(q);
+      snap.forEach(d => videos.push({ id: d.id, ...d.data() }));
+    }
+  } catch(e) {}
+
+  const listEl = document.getElementById('store-stock-list');
+  if (!listEl) return;
+
+  if (videos.length === 0) {
+    listEl.innerHTML = `
+      <div style="background:white;border-radius:var(--radius-md);
+        padding:40px;text-align:center;color:var(--text-muted);
+        box-shadow:var(--shadow-sm);">
+        <i class="fa-solid fa-film" style="font-size:32px;
+          margin-bottom:8px;display:block;"></i>
+        店舗ストック動画がありません。
+        <div style="margin-top:8px;font-size:12px;">
+          「動画投稿」から店舗ストックチャンネルに投稿してください。
+        </div>
+      </div>`;
+    return;
+  }
+
+  listEl.innerHTML = videos.map(v => `
+    <div style="background:white;border-radius:var(--radius-md);
+      padding:16px;margin-bottom:12px;box-shadow:var(--shadow-sm);">
+      <div style="display:flex;gap:12px;align-items:start;">
+        <div style="width:80px;height:56px;border-radius:var(--radius-sm);
+          background:linear-gradient(135deg,#1E2A3A,#2563EB);
+          flex-shrink:0;overflow:hidden;display:flex;
+          align-items:center;justify-content:center;">
+          ${v.thumbnailURL
+            ? `<img src="${v.thumbnailURL}"
+                style="width:100%;height:100%;object-fit:cover;">`
+            : `<i class="fa-solid fa-play"
+                style="color:rgba(255,255,255,0.4);font-size:18px;"></i>`}
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:14px;font-weight:700;margin-bottom:4px;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            ${v.title || ''}
+          </div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">
+            ${v.genre || ''} · ${v.uploaderName || ''} ·
+            👁 ${v.views || 0} · ❤️ ${v.likes || 0}
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button onclick="openStoreStockPlayer('${v.youtubeId || ''}')" style="
+              padding:6px 12px;background:var(--primary);color:white;
+              border:none;border-radius:var(--radius-sm);
+              font-family:var(--font);font-size:12px;
+              font-weight:600;cursor:pointer;">
+              <i class="fa-solid fa-play"></i> 再生
+            </button>
+            <button onclick="shareStoreStock('${v.id}','${(v.title||'').replace(/'/g,'')}')" style="
+              padding:6px 12px;background:var(--success-light);
+              color:var(--success);border:none;
+              border-radius:var(--radius-sm);
+              font-family:var(--font);font-size:12px;
+              font-weight:600;cursor:pointer;">
+              <i class="fa-solid fa-share"></i> タスクで送る
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function openStoreStockPlayer(youtubeId) {
+  if (!youtubeId) { showToast('動画URLがありません', 'error'); return; }
+
+  let modal = document.getElementById('player-modal');
+  if (modal) modal.remove();
+
+  modal = document.createElement('div');
+  modal.id = 'player-modal';
+  modal.style.cssText = `
+    position:fixed;top:0;left:0;width:100%;height:100%;
+    background:rgba(0,0,0,0.9);z-index:2000;
+    display:flex;flex-direction:column;
+    align-items:center;justify-content:center;padding:16px;`;
+
+  modal.innerHTML = `
+    <div style="width:100%;max-width:800px;">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+        <button onclick="document.getElementById('player-modal').remove()" style="
+          background:rgba(255,255,255,0.2);border:none;color:white;
+          border-radius:50%;width:36px;height:36px;cursor:pointer;
+          font-size:16px;display:flex;align-items:center;justify-content:center;">
+          <i class="fa-solid fa-times"></i>
+        </button>
+      </div>
+      <div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;
+        border-radius:var(--radius-lg);">
+        <iframe
+          src="https://www.youtube.com/embed/${youtubeId}?autoplay=1"
+          style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope"
+          allowfullscreen>
+        </iframe>
+      </div>
+    </div>`;
+
+  document.body.appendChild(modal);
+}
+
+async function shareStoreStock(videoId, videoTitle) {
+  navigateManager('tasks');
+  setTimeout(() => {
+    toggleTaskForm();
+    setTimeout(() => {
+      loadVideosByFolder('すべて');
+      setTimeout(() => {
+        const checkboxes = document.querySelectorAll('.video-check');
+        checkboxes.forEach(cb => {
+          if (cb.value === videoId) cb.checked = true;
+        });
+        showToast(`「${videoTitle}」を選択しました。送る相手を選んでください。`);
+      }, 1000);
+    }, 300);
+  }, 300);
 }
 
 async function renderManagerDashboard(content) {
@@ -4701,10 +4851,85 @@ async function renderHQInvite(content) {
 
 function renderHQSettings(content) {
   content.innerHTML = `
-    <div style="background:white;border-radius:var(--radius-md);padding:24px;box-shadow:var(--shadow-sm);">
-      <div style="font-size:15px;font-weight:700;margin-bottom:16px;">システム設定</div>
-      <div style="color:var(--text-muted);font-size:13px;">設定項目は今後追加されます</div>
+    <div style="background:white;border-radius:var(--radius-md);
+      padding:24px;box-shadow:var(--shadow-sm);margin-bottom:16px;">
+      <div style="font-size:15px;font-weight:700;margin-bottom:16px;">
+        システム設定
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:var(--radius-md);
+        padding:16px;margin-bottom:12px;">
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px;">
+          自社情報
+        </div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">
+          companyId: ${currentUser?.companyId || 'company_001'}
+        </div>
+      </div>
+
+      <div style="border:1px solid var(--warning);border-radius:var(--radius-md);
+        padding:16px;background:var(--warning-light);">
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px;">
+          🔧 開発用：テスト店舗を登録する
+        </div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">
+          テスト用の店舗データをFirestoreに登録します。
+          本番運用時は「店舗管理」から正式に登録してください。
+        </div>
+        <button onclick="registerTestStores()" style="
+          padding:10px 20px;background:var(--warning);color:white;border:none;
+          border-radius:var(--radius-sm);font-family:var(--font);
+          font-size:13px;font-weight:700;cursor:pointer;">
+          テスト店舗を登録する（2店舗）
+        </button>
+        <div id="test-store-result" style="margin-top:8px;"></div>
+      </div>
     </div>`;
+}
+
+async function registerTestStores() {
+  const testStores = [
+    {
+      storeName: '五反田店',
+      storeId: 'store_001',
+      address: '東京都品川区五反田1-1-1',
+      phone: '03-0000-0001',
+      companyId: currentUser?.companyId || 'company_001',
+    },
+    {
+      storeName: '渋谷店',
+      storeId: 'store_002',
+      address: '東京都渋谷区渋谷2-2-2',
+      phone: '03-0000-0002',
+      companyId: currentUser?.companyId || 'company_001',
+    }
+  ];
+
+  try {
+    for (const store of testStores) {
+      if (window._addDoc && window._collection) {
+        await window._addDoc(
+          window._collection(window._db, 'stores'),
+          {
+            ...store,
+            createdAt: window._serverTimestamp(),
+            updatedAt: window._serverTimestamp()
+          }
+        );
+      }
+    }
+    const resultEl = document.getElementById('test-store-result');
+    if (resultEl) {
+      resultEl.innerHTML = `
+        <div style="color:var(--success);font-size:13px;font-weight:600;">
+          ✅ 五反田店・渋谷店を登録しました。
+          「店舗管理」から招待リンクを発行できます。
+        </div>`;
+    }
+    showToast('テスト店舗を登録しました ✅');
+  } catch(e) {
+    showToast('登録に失敗しました: ' + e.message, 'error');
+  }
 }
 
 let allFeedVideos = [];
@@ -4719,19 +4944,43 @@ async function loadFeedVideos() {
     let videos = [];
 
     if (window._getDocs && window._collection && window._query) {
-      const constraints = [
-        window._where('companyId', '==', currentUser?.companyId || 'company_001'),
-        window._where('published', '==', true),
-        window._where('channel', '==', currentChannel)
-      ];
-      const q = window._query(
-        window._collection(window._db, 'videos'),
-        ...constraints
-      );
-      const snapshot = await window._getDocs(q);
-      snapshot.forEach(doc => {
-        videos.push({ id: doc.id, ...doc.data() });
-      });
+      const companyId = currentUser?.companyId || 'company_001';
+      const storeId = currentUser?.storeId || 'store_001';
+
+      if (currentChannel === 'common') {
+        // 全店共通：companyIdが一致するofficial動画
+        const q = window._query(
+          window._collection(window._db, 'videos'),
+          window._where('companyId', '==', companyId),
+          window._where('published', '==', true),
+          window._where('channel', '==', 'common')
+        );
+        const snap = await window._getDocs(q);
+        snap.forEach(doc => videos.push({ id: doc.id, ...doc.data() }));
+
+      } else if (currentChannel === 'store') {
+        // 店舗ストック：自分のstoreIdの動画のみ
+        const q = window._query(
+          window._collection(window._db, 'videos'),
+          window._where('companyId', '==', companyId),
+          window._where('published', '==', true),
+          window._where('channel', '==', 'store'),
+          window._where('storeId', '==', storeId)
+        );
+        const snap = await window._getDocs(q);
+        snap.forEach(doc => videos.push({ id: doc.id, ...doc.data() }));
+
+      } else if (currentChannel === 'pr') {
+        // 広報：companyId一致
+        const q = window._query(
+          window._collection(window._db, 'videos'),
+          window._where('companyId', '==', companyId),
+          window._where('published', '==', true),
+          window._where('channel', '==', 'pr')
+        );
+        const snap = await window._getDocs(q);
+        snap.forEach(doc => videos.push({ id: doc.id, ...doc.data() }));
+      }
     }
 
     allFeedVideos = videos;
