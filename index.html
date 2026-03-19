@@ -1891,7 +1891,14 @@ function showInviteRequiredScreen() {
 }
 
 function initApp(role) {
+  // 全ての画面を非表示にしてからアプリを起動
   document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('lp-screen').style.display = 'none';
+
+  // ログインモーダルが残っていれば削除
+  const loginModal = document.getElementById('login-modal');
+  if (loginModal) loginModal.style.display = 'none';
+
   const app = document.getElementById('app-screen');
   app.style.display = 'block';
 
