@@ -5795,6 +5795,32 @@ function closeNotificationDrawer() {
   if (overlay) overlay.style.display = 'none';
 }
 
+function handleNotificationTap(type) {
+  closeNotificationDrawer();
+
+  const role = currentUser?.role || 'staff';
+
+  if (type === 'new_task') {
+    // タスク通知 → タスクタブ（スタッフのみ）
+    if (role === 'staff') navigateStaff('tasks');
+
+  } else if (type === 'new_video' || type === 'video_updated') {
+    // 動画投稿・更新通知 → 全ロールでフィード/動画管理へ
+    if (role === 'staff') {
+      navigateStaff('feed');
+    } else if (role === 'manager') {
+      navigateManager('storestock');
+    } else if (role === 'headquarters') {
+      navigateHQ('videos');
+    }
+
+  } else if (type === 'video_request') {
+    // 申請通知 → 本部の動画管理へ
+    if (role === 'headquarters') navigateHQ('videos');
+    if (role === 'manager') navigateManager('upload');
+  }
+}
+
 async function loadNotifications() {
   const listEl = document.getElementById('notification-list');
   if (!listEl) return;
@@ -6314,14 +6340,15 @@ async function submitVideo() {
       );
 
       const notifChannel = channel || 'common';
-      const storeId = currentUser?.storeId || '';
+      const uploaderStoreId = currentUser?.storeId || '';
+      const uploaderName = currentUser?.name || '';
 
       if (!isHQ) {
-        // 店長の場合：本部への審査申請通知
+        // 店長投稿：本部への審査申請通知
         await window._addDoc(
           window._collection(window._db, 'notifications'), {
             type: 'video_request',
-            message: `【動画申請】${currentUser?.storeName||''}の${currentUser?.name||''}が「${title}」を申請しました`,
+            message: `【動画申請】${currentUser?.storeName||''}の${uploaderName}が「${title}」を申請しました`,
             companyId,
             targetRole: 'headquarters',
             targetStoreId: null,
@@ -6329,61 +6356,35 @@ async function submitVideo() {
             createdAt: window._serverTimestamp()
           }
         );
+      }
 
-        // 店長投稿：チャンネルに応じてスタッフ・全員にも通知
-        if (notifChannel === 'store') {
-          await window._addDoc(
-            window._collection(window._db, 'notifications'), {
-              type: 'new_video',
-              message: `【店舗ストック更新】${currentUser?.name||''}が「${title}」を投稿しました`,
-              companyId,
-              targetRole: 'all',
-              targetStoreId: currentUser?.storeId || '',
-              read: false,
-              createdAt: window._serverTimestamp()
-            }
-          );
-        } else {
-          await window._addDoc(
-            window._collection(window._db, 'notifications'), {
-              type: 'new_video',
-              message: `【新着動画】${currentUser?.name||''}が「${title}」を投稿しました`,
-              companyId,
-              targetRole: 'all',
-              targetStoreId: null,
-              read: false,
-              createdAt: window._serverTimestamp()
-            }
-          );
-        }
+      // 全員への動画通知（本部・店長どちらの投稿も）
+      if (notifChannel === 'store') {
+        // 店舗ストック：同じ店舗のメンバーに通知
+        await window._addDoc(
+          window._collection(window._db, 'notifications'), {
+            type: 'new_video',
+            message: `【店舗ストック更新】${uploaderName}が「${title}」を投稿しました`,
+            companyId,
+            targetRole: 'all',
+            targetStoreId: uploaderStoreId,
+            read: false,
+            createdAt: window._serverTimestamp()
+          }
+        );
       } else {
-        // 本部の場合：チャンネルに応じた通知
-        if (notifChannel === 'store') {
-          await window._addDoc(
-            window._collection(window._db, 'notifications'), {
-              type: 'new_video',
-              message: `【店舗ストック更新】${currentUser?.name || '本部'}が「${title}」を投稿しました`,
-              companyId,
-              targetRole: 'all',
-              targetStoreId: storeId,
-              read: false,
-              createdAt: window._serverTimestamp()
-            }
-          );
-        } else {
-          // 全店共通・広報：全ロールに通知
-          await window._addDoc(
-            window._collection(window._db, 'notifications'), {
-              type: 'new_video',
-              message: `【新着動画】${currentUser?.name || '本部'}が「${title}」を投稿しました`,
-              companyId,
-              targetRole: 'all',
-              targetStoreId: null,
-              read: false,
-              createdAt: window._serverTimestamp()
-            }
-          );
-        }
+        // 全店共通・広報：全ロール全員に通知
+        await window._addDoc(
+          window._collection(window._db, 'notifications'), {
+            type: 'new_video',
+            message: `【新着動画】${uploaderName}が「${title}」を投稿しました`,
+            companyId,
+            targetRole: 'all',
+            targetStoreId: null,
+            read: false,
+            createdAt: window._serverTimestamp()
+          }
+        );
       }
     }
 
