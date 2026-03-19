@@ -6302,8 +6302,8 @@ async function submitVideo() {
       likes: 0,
       views: 0,
       isOfficial: isHQ,
-      published: isHQ,
-      status: isHQ ? 'published' : 'pending',
+      published: true,
+      status: 'published',
       createdAt: window._serverTimestamp ? window._serverTimestamp() : new Date()
     };
 
@@ -6335,7 +6335,7 @@ async function submitVideo() {
           await window._addDoc(
             window._collection(window._db, 'notifications'), {
               type: 'new_video',
-              message: `【店舗ストック更新】${currentUser?.name||''}が「${title}」を投稿しました（審査中）`,
+              message: `【店舗ストック更新】${currentUser?.name||''}が「${title}」を投稿しました`,
               companyId,
               targetRole: 'all',
               targetStoreId: currentUser?.storeId || '',
@@ -6347,7 +6347,7 @@ async function submitVideo() {
           await window._addDoc(
             window._collection(window._db, 'notifications'), {
               type: 'new_video',
-              message: `【新着動画】${currentUser?.name||''}が「${title}」を投稿しました（審査中）`,
+              message: `【新着動画】${currentUser?.name||''}が「${title}」を投稿しました`,
               companyId,
               targetRole: 'all',
               targetStoreId: null,
@@ -6387,7 +6387,7 @@ async function submitVideo() {
       }
     }
 
-    showToast(isHQ ? '動画を公開しました ✅' : '申請しました ✅');
+    showToast('投稿しました ✅');
     document.getElementById('up-title').value = '';
     document.getElementById('up-desc').value = '';
     document.getElementById('up-video-url').value = '';
