@@ -1511,9 +1511,9 @@ function showLoginScreen() {
 
 function renderLP(lp) {
   const problemCards = [
-    ['fa-person-walking-arrow-right','#DC2626','新人がすぐ辞める','入店初日に何をすればいいかわからず、不安を抱えたまま辞めてしまう'],
-    ['fa-clock','#D97706','教育に時間がかかる','店長が口頭で同じことを何度も説明している。その時間が生産性を奪っている'],
-    ['fa-language','#2563EB','外国人スタッフへの説明が難しい','日本語のマニュアルを渡しても理解されない。言語の壁が教育を阻む'],
+    ['fa-person-walking-arrow-right','#DC2626','新人がすぐ辞める','入店初日に何をすればいいかわからず、不安を抱えたまま辞めてしまう。採用コストだけが積み上がっていく。'],
+    ['fa-store','#D97706','店舗によってクオリティにばらつきがある','同じチェーンなのに、届ける味が違う。教育の差が、品質の差になっている。'],
+    ['fa-language','#2563EB','外国人スタッフへの説明が難しい','日本語のマニュアルを渡しても理解されない。言語の壁が、教育を阻む。'],
   ];
 
   const featureCards = [
@@ -1529,13 +1529,16 @@ function renderLP(lp) {
   ];
 
   const problemHTML = problemCards.map(function(c) {
-    return '<div class="feature-card">'
-      + '<div style="width:48px;height:48px;border-radius:10px;background:' + c[1] + '22;'
-      + 'display:flex;align-items:center;justify-content:center;margin-bottom:16px;">'
-      + '<i class="fa-solid ' + c[0] + '" style="color:' + c[1] + ';font-size:20px;"></i>'
+    return '<div class="feature-card" style="position:relative;overflow:hidden;">'
+      + '<div style="position:absolute;top:0;left:0;right:0;height:4px;background:' + c[1] + ';"></div>'
+      + '<div style="margin-top:8px;">'
+      + '<div style="width:52px;height:52px;border-radius:14px;background:' + c[1] + '15;'
+      + 'display:flex;align-items:center;justify-content:center;margin-bottom:20px;">'
+      + '<i class="fa-solid ' + c[0] + '" style="color:' + c[1] + ';font-size:22px;"></i>'
       + '</div>'
-      + '<div style="font-size:16px;font-weight:700;margin-bottom:8px;">' + c[2] + '</div>'
-      + '<div style="font-size:14px;color:#6B7280;line-height:1.7;">' + c[3] + '</div>'
+      + '<div style="font-size:17px;font-weight:700;color:#1F2937;margin-bottom:10px;line-height:1.4;">' + c[2] + '</div>'
+      + '<div style="font-size:14px;color:#6B7280;line-height:1.8;">' + c[3] + '</div>'
+      + '</div>'
       + '</div>';
   }).join('');
 
