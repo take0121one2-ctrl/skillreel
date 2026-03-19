@@ -3066,8 +3066,7 @@ async function loadManagerTaskForm() {
     if (window._getDocs && window._query) {
       const sq = window._query(
         window._collection(window._db, 'users'),
-        window._where('storeId', '==', currentUser?.storeId || 'store_001'),
-        window._where('role', '==', 'staff')
+        window._where('storeId', '==', currentUser?.storeId || '')
       );
       const ss = await window._getDocs(sq);
       ss.forEach(d => staffList.push({ id: d.id, ...d.data() }));
@@ -3117,24 +3116,46 @@ async function sendTasks() {
     for (const uid of staffIds) {
       for (const v of videos) {
         if (window._addDoc) {
+          const taskData = {
+            videoId: v.id,
+            videoTitle: v.title,
+            assignedTo: uid,
+            assignedBy: currentUser?.uid || '',
+            assignerName: currentUser?.name || '',
+            storeId: currentUser?.storeId || '',
+            companyId: currentUser?.companyId || 'company_001',
+            status: 'unwatched',
+            dueDate: due,
+            createdAt: window._serverTimestamp()
+          };
           await window._addDoc(
-            window._collection(window._db, 'taskAssignments'), {
-              videoId: v.id,
-              videoTitle: v.title,
-              assignedTo: uid,
-              assignedBy: currentUser?.uid,
-              assignerName: currentUser?.name,
-              storeId: currentUser?.storeId || 'store_001',
-              companyId: currentUser?.companyId || 'company_001',
-              status: 'unwatched',
-              dueDate: due,
-              createdAt: window._serverTimestamp()
-            });
+            window._collection(window._db, 'taskAssignments'),
+            taskData
+          );
         }
       }
     }
+
+    // スタッフへ通知
+    for (const uid of staffIds) {
+      if (window._addDoc) {
+        await window._addDoc(
+          window._collection(window._db, 'notifications'), {
+            type: 'new_task',
+            message: `${currentUser?.name || '店長'}から新しいタスクが届きました`,
+            companyId: currentUser?.companyId || 'company_001',
+            targetUserId: uid,
+            read: false,
+            createdAt: window._serverTimestamp()
+          }
+        );
+      }
+    }
+
     showToast(`${staffIds.length}名にタスクを送信しました ✅`);
     toggleTaskForm();
+    // フォーム送信後にタスク一覧を更新
+    loadManagerTasks('unwatched');
   } catch(e) {
     showToast('送信に失敗しました: ' + e.message, 'error');
   }
@@ -3151,15 +3172,45 @@ async function loadManagerTasks(status) {
 
   const listEl = document.getElementById('manager-task-list');
   if (!listEl) return;
-  listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i></div>';
+  listEl.innerHTML = `
+    <div style="text-align:center;padding:20px;color:var(--text-muted);">
+      <i class="fa-solid fa-spinner fa-spin"></i>
+    </div>`;
+
+  const storeId = currentUser?.storeId || '';
+
+  // スタッフ名マップを先に取得
+  const staffMap = {};
+  try {
+    if (window._getDocs && window._query && storeId) {
+      const sq = window._query(
+        window._collection(window._db, 'users'),
+        window._where('storeId', '==', storeId)
+      );
+      const ss = await window._getDocs(sq);
+      ss.forEach(d => {
+        const data = d.data();
+        staffMap[d.id] = data.name || data.displayName || '名前なし';
+      });
+    }
+  } catch(e) {}
 
   let tasks = [];
   try {
     if (window._getDocs && window._query) {
+      let constraints = storeId
+        ? [
+            window._where('storeId', '==', storeId),
+            window._where('status', '==', status)
+          ]
+        : [
+            window._where('companyId', '==', currentUser?.companyId || 'company_001'),
+            window._where('status', '==', status)
+          ];
+
       const q = window._query(
         window._collection(window._db, 'taskAssignments'),
-        window._where('storeId', '==', currentUser?.storeId || 'store_001'),
-        window._where('status', '==', status)
+        ...constraints
       );
       const snap = await window._getDocs(q);
       snap.forEach(d => tasks.push({ id: d.id, ...d.data() }));
@@ -3167,27 +3218,80 @@ async function loadManagerTasks(status) {
   } catch(e) {}
 
   if (tasks.length === 0) {
-    listEl.innerHTML = `<div style="background:white;border-radius:var(--radius-md);
-      padding:24px;text-align:center;color:var(--text-muted);box-shadow:var(--shadow-sm);">
-      タスクはありません</div>`;
+    listEl.innerHTML = `
+      <div style="background:white;border-radius:var(--radius-md);
+        padding:24px;text-align:center;color:var(--text-muted);
+        box-shadow:var(--shadow-sm);">
+        タスクはありません
+      </div>`;
     return;
   }
 
-  listEl.innerHTML = tasks.map(t => `
-    <div style="background:white;border-radius:var(--radius-md);padding:16px;
-      margin-bottom:8px;box-shadow:var(--shadow-sm);display:flex;align-items:center;gap:12px;">
-      <div style="flex:1;">
-        <div style="font-size:14px;font-weight:700;margin-bottom:4px;">${t.videoTitle||''}</div>
-        <div style="font-size:12px;color:var(--text-secondary);">期日：${t.dueDate||'未設定'}</div>
-      </div>
-      <select onchange="updateTaskStatus('${t.id}',this.value)" style="
-        padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);
-        font-family:var(--font);font-size:12px;outline:none;">
-        <option value="unwatched" ${t.status==='unwatched'?'selected':''}>未視聴</option>
-        <option value="watched" ${t.status==='watched'?'selected':''}>視聴済み</option>
-        <option value="confirmed" ${t.status==='confirmed'?'selected':''}>確認済み</option>
-      </select>
-    </div>`).join('');
+  const statusColors = {
+    unwatched: 'var(--danger)',
+    watched: 'var(--info)',
+    confirmed: 'var(--success)'
+  };
+  const statusLabels = {
+    unwatched: '未視聴',
+    watched: '視聴済み',
+    confirmed: '確認済み'
+  };
+
+  listEl.innerHTML = tasks.map(t => {
+    const staffName = staffMap[t.assignedTo] || t.assignedTo?.slice(0,8) || '不明';
+    return `
+      <div style="background:white;border-radius:var(--radius-md);
+        padding:16px;margin-bottom:8px;box-shadow:var(--shadow-sm);
+        ${t.status === 'watched' ? 'border-left:4px solid var(--info);' : ''}">
+        <div style="display:flex;align-items:center;
+          justify-content:space-between;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:8px;flex:1;">
+            <div style="width:32px;height:32px;border-radius:50%;
+              background:var(--primary);display:flex;align-items:center;
+              justify-content:center;color:white;font-size:13px;
+              font-weight:700;flex-shrink:0;">
+              ${(staffName)[0]}
+            </div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:700;">
+                ${staffName}
+              </div>
+              <div style="font-size:12px;color:var(--text-secondary);
+                white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                ${t.videoTitle || ''}
+              </div>
+            </div>
+          </div>
+          <span style="background:${statusColors[t.status]};color:white;
+            padding:2px 8px;border-radius:999px;font-size:11px;
+            font-weight:600;margin-left:8px;white-space:nowrap;">
+            ${statusLabels[t.status] || t.status}
+          </span>
+        </div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">
+          期日：${t.dueDate || '未設定'}
+        </div>
+        <div style="display:flex;gap:8px;">
+          <select onchange="updateTaskStatus('${t.id}',this.value)" style="
+            flex:1;padding:6px 10px;border:1px solid var(--border);
+            border-radius:var(--radius-sm);font-family:var(--font);
+            font-size:12px;outline:none;">
+            <option value="unwatched" ${t.status==='unwatched'?'selected':''}>未視聴</option>
+            <option value="watched" ${t.status==='watched'?'selected':''}>視聴済み</option>
+            <option value="confirmed" ${t.status==='confirmed'?'selected':''}>確認済み</option>
+          </select>
+          ${t.status === 'watched' ? `
+            <button onclick="confirmTaskFromList('${t.id}')" style="
+              padding:6px 14px;background:var(--success);color:white;
+              border:none;border-radius:var(--radius-sm);
+              font-family:var(--font);font-size:12px;
+              font-weight:700;cursor:pointer;white-space:nowrap;">
+              確認済みにする
+            </button>` : ''}
+        </div>
+      </div>`;
+  }).join('');
 }
 
 async function updateTaskStatus(taskId, newStatus) {
@@ -3199,6 +3303,28 @@ async function updateTaskStatus(taskId, newStatus) {
       );
     }
     showToast('ステータスを更新しました');
+    // タスク一覧が表示中なら更新
+    const listEl = document.getElementById('manager-task-list');
+    if (listEl) setTimeout(() => loadManagerTasks(newStatus), 500);
+  } catch(e) {
+    showToast('更新に失敗しました', 'error');
+  }
+}
+
+async function confirmTaskFromList(taskId) {
+  try {
+    if (window._updateDoc && window._doc) {
+      await window._updateDoc(
+        window._doc(window._db, 'taskAssignments', taskId),
+        {
+          status: 'confirmed',
+          confirmedAt: window._serverTimestamp(),
+          confirmedBy: currentUser?.uid
+        }
+      );
+    }
+    showToast('確認済みにしました ✅');
+    loadManagerTasks('watched');
   } catch(e) {
     showToast('更新に失敗しました', 'error');
   }
