@@ -2770,7 +2770,7 @@ function openStoreStockPlayer(youtubeId) {
       <div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;
         border-radius:var(--radius-lg);">
         <iframe
-          src="https://www.youtube.com/embed/${youtubeId}?autoplay=1"
+          src="https://www.youtube.com/embed/${youtubeId}?autoplay=1&cc_load_policy=1&cc_lang_pref=ja"
           style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope"
           allowfullscreen>
@@ -5752,7 +5752,7 @@ async function renderFeedSlides(videos) {
 
         ${hasVideo ? `
           <iframe
-            src="${v.videoURL}"
+            src="${v.videoURL}&cc_load_policy=1&cc_lang_pref=${currentLang === 'ja' ? 'ja' : currentLang === 'en' ? 'en' : currentLang === 'vi' ? 'vi' : currentLang === 'my' ? 'my' : currentLang === 'ne' ? 'ne' : 'ja'}&hl=ja"
             style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope"
             allowfullscreen>
@@ -5820,6 +5820,15 @@ async function renderFeedSlides(videos) {
               <i class="fa-solid fa-heart"></i>
               <span style="margin-left:4px;">${v.likes||0}</span>
             </button>
+            <button onclick="event.stopPropagation();toggleCaption('${v.id}')"
+              id="caption-btn-${v.id}" style="
+              padding:10px 14px;background:rgba(255,255,255,0.2);
+              backdrop-filter:blur(4px);color:white;border:none;
+              border-radius:var(--radius-sm);font-family:var(--font);
+              font-size:12px;cursor:pointer;
+              box-shadow:0 2px 8px rgba(0,0,0,0.2);">
+              <i class="fa-solid fa-closed-captioning"></i>
+            </button>
           </div>
         </div>
       </div>`;
@@ -5869,6 +5878,36 @@ function switchChannel(channelId) {
   currentChannel = channelId;
   const content = document.getElementById('main-content');
   if (content && currentPage === 'feed') renderFeed(content);
+}
+
+function toggleCaption(videoId) {
+  const slide = document.getElementById('slide-' + videoId);
+  if (!slide) return;
+  const iframe = slide.querySelector('iframe');
+  if (!iframe) {
+    showToast('この動画には字幕が利用できません');
+    return;
+  }
+
+  const src = iframe.src;
+  const btn = document.getElementById('caption-btn-' + videoId);
+  const ccLang = (() => {
+    const map = { ja:'ja', en:'en', vi:'vi', my:'my', ne:'ne' };
+    return map[currentLang] || 'ja';
+  })();
+
+  if (src.includes('cc_load_policy=1')) {
+    iframe.src = src.replace('cc_load_policy=1', 'cc_load_policy=0');
+    if (btn) btn.style.background = 'rgba(255,255,255,0.2)';
+    showToast('字幕をオフにしました');
+  } else {
+    const newSrc = src.includes('cc_load_policy=0')
+      ? src.replace('cc_load_policy=0', 'cc_load_policy=1')
+      : src + '&cc_load_policy=1&cc_lang_pref=' + ccLang;
+    iframe.src = newSrc;
+    if (btn) btn.style.background = 'rgba(37,99,235,0.6)';
+    showToast('字幕をオンにしました');
+  }
 }
 
 async function likeVideo(videoId, btn) {
@@ -6760,6 +6799,22 @@ function changeLang(lang) {
     else if (currentPage === 'mypage') renderMypage(content);
     else if (currentPage === 'feed') renderFeed(content);
   }
+
+  // フィード内のiframeの字幕言語を切り替え
+  const langMap = {
+    ja: 'ja', en: 'en', vi: 'vi', my: 'my', ne: 'ne'
+  };
+  const ccLang = langMap[lang] || 'ja';
+
+  document.querySelectorAll('#feed-slides iframe').forEach(iframe => {
+    try {
+      const src = iframe.src;
+      const newSrc = src
+        .replace(/cc_lang_pref=[^&]*/,  'cc_lang_pref=' + ccLang)
+        .replace(/cc_load_policy=[^&]*/, 'cc_load_policy=1');
+      if (newSrc !== src) iframe.src = newSrc;
+    } catch(e) {}
+  });
 }
 async function generateInvite(role) {
   if (!currentUser) return;
@@ -6842,7 +6897,7 @@ async function submitVideo() {
 
   const thumbnailURL = thumbUrl ||
     `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`;
-  const embedURL = `https://www.youtube.com/embed/${youtubeId}?autoplay=1&loop=1&playlist=${youtubeId}&mute=1`;
+  const embedURL = `https://www.youtube.com/embed/${youtubeId}?autoplay=1&loop=1&playlist=${youtubeId}&mute=1&cc_load_policy=1&cc_lang_pref=ja`;
 
   const submitBtn = document.querySelector('[onclick="submitVideo()"]');
   if (submitBtn) { submitBtn.textContent = '投稿中...'; submitBtn.disabled = true; }
