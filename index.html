@@ -2747,7 +2747,7 @@ function renderManagerUpload(content) {
           padding:12px;background:var(--primary);color:white;border:none;
           border-radius:var(--radius-md);font-family:var(--font);font-size:14px;
           font-weight:700;cursor:pointer;">
-          投稿申請する
+          投稿する
         </button>
       </div>
     </div>`;
@@ -3809,7 +3809,7 @@ function renderHQUpload(content) {
           padding:12px;background:var(--primary);color:white;border:none;
           border-radius:var(--radius-md);font-family:var(--font);font-size:14px;
           font-weight:700;cursor:pointer;">
-          <i class="fa-solid fa-upload"></i> 投稿する（即時公開）
+          <i class="fa-solid fa-upload"></i> 投稿する
         </button>
       </div>
 
@@ -6321,7 +6321,7 @@ async function submitVideo() {
         await window._addDoc(
           window._collection(window._db, 'notifications'), {
             type: 'video_request',
-            message: `${currentUser?.storeName||''}の${currentUser?.name||''}から動画申請：「${title}」`,
+            message: `【動画申請】${currentUser?.storeName||''}の${currentUser?.name||''}が「${title}」を申請しました`,
             companyId,
             targetRole: 'headquarters',
             targetStoreId: null,
@@ -6329,6 +6329,33 @@ async function submitVideo() {
             createdAt: window._serverTimestamp()
           }
         );
+
+        // 店長投稿：チャンネルに応じてスタッフ・全員にも通知
+        if (notifChannel === 'store') {
+          await window._addDoc(
+            window._collection(window._db, 'notifications'), {
+              type: 'new_video',
+              message: `【店舗ストック更新】${currentUser?.name||''}が「${title}」を投稿しました（審査中）`,
+              companyId,
+              targetRole: 'all',
+              targetStoreId: currentUser?.storeId || '',
+              read: false,
+              createdAt: window._serverTimestamp()
+            }
+          );
+        } else {
+          await window._addDoc(
+            window._collection(window._db, 'notifications'), {
+              type: 'new_video',
+              message: `【新着動画】${currentUser?.name||''}が「${title}」を投稿しました（審査中）`,
+              companyId,
+              targetRole: 'all',
+              targetStoreId: null,
+              read: false,
+              createdAt: window._serverTimestamp()
+            }
+          );
+        }
       } else {
         // 本部の場合：チャンネルに応じた通知
         if (notifChannel === 'store') {
@@ -6371,7 +6398,7 @@ async function submitVideo() {
 
     showToast('投稿に失敗しました: ' + e.message, 'error');
   } finally {
-    if (submitBtn) { submitBtn.textContent = '投稿申請する'; submitBtn.disabled = false; }
+    if (submitBtn) { submitBtn.textContent = '投稿する'; submitBtn.disabled = false; }
   }
 }
 function logout() { location.reload(); }
