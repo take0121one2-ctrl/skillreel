@@ -2023,10 +2023,8 @@ function filterTasks(status) {
 
 function goToTaskVideo(videoId, taskId) {
   window._pendingTaskVideoId = videoId;
+  window._scrollToVideoId = videoId;
   window._pendingTaskId = taskId;
-
-  // フィードに切り替えてから動画をロード
-  currentPage = 'tasks'; // 一旦タスクのまま
   navigateStaff('feed');
   showToast('タスクの動画を表示しています');
 }
@@ -5390,6 +5388,21 @@ async function loadFeedVideos() {
     if (loadingEl) loadingEl.style.display = 'none';
     renderFeedSlides(videos);
 
+    // 対象動画へスクロール
+    if (window._scrollToVideoId) {
+      const scrollTargetId = window._scrollToVideoId;
+      window._scrollToVideoId = null;
+      setTimeout(() => {
+        const targetEl = document.getElementById('slide-' + scrollTargetId);
+        if (targetEl) {
+          targetEl.scrollIntoView({ behavior: 'instant' });
+        } else {
+          const slidesEl = document.getElementById('feed-slides');
+          if (slidesEl) slidesEl.scrollTop = 0;
+        }
+      }, 100);
+    }
+
   } catch(e) {
     if (loadingEl) loadingEl.style.display = 'none';
     renderFeedSlides([]);
@@ -5464,7 +5477,8 @@ async function renderFeedSlides(videos) {
     const taskId = taskIdMap[v.id] || '';
 
     return `
-      <div style="height:100vh;scroll-snap-align:start;position:relative;
+      <div id="slide-${v.id}"
+        style="height:100vh;scroll-snap-align:start;position:relative;
         flex-shrink:0;background:${bg};"
         onclick="toggleFeedDetail('detail-${i}')">
 
@@ -5813,20 +5827,30 @@ function handleNotificationTap(type, videoId, videoChannel) {
     return;
   }
 
+  // new_video・video_updated：該当動画に飛ぶ
   if (type === 'new_video' || type === 'video_updated') {
     if (role === 'staff') {
-      if (videoId) {
-        if (videoChannel === 'store') { currentChannel = 'store'; }
-        else if (videoChannel === 'pr') { currentChannel = 'pr'; }
-        else { currentChannel = 'common'; }
-        window._pendingTaskVideoId = videoId;
-        navigateStaff('feed');
+      // チャンネルを切り替え
+      if (videoChannel === 'store') {
+        currentChannel = 'store';
+      } else if (videoChannel === 'pr') {
+        currentChannel = 'pr';
       } else {
-        navigateStaff('feed');
+        currentChannel = 'common';
       }
+      // videoIdがある場合はその動画に飛ぶ
+      if (videoId) {
+        window._pendingTaskVideoId = videoId;
+        window._scrollToVideoId = videoId;
+      }
+      navigateStaff('feed');
+
     } else if (role === 'manager') {
-      if (videoChannel === 'store') navigateManager('storestock');
-      else navigateManager('upload');
+      if (videoChannel === 'store') {
+        navigateManager('storestock');
+      } else {
+        navigateManager('upload');
+      }
     } else if (role === 'headquarters') {
       navigateHQ('videos');
     }
