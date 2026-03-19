@@ -1740,13 +1740,19 @@ async function loadSkillStats() {
     ? Math.round((confirmedCount / totalTasks) * 100)
     : 0;
 
+  const t = LANG_TEXTS[currentLang] || LANG_TEXTS['ja'];
+
   const levelMsg =
-    confirmedCount === 0 ? 'タスクをこなしてスキルを積み上げよう！' :
-    confirmedCount < 3  ? 'いいスタート！続けよう 🔥' :
-    confirmedCount < 7  ? '成長中！素晴らしい 🌟' :
-    confirmedCount < 15 ? 'ベテランへの道！⭐' : 'スキルマスター！👑';
+    confirmedCount === 0 ? t.lvMsg0 :
+    confirmedCount < 3   ? t.lvMsg1 :
+    confirmedCount < 7   ? t.lvMsg2 :
+    confirmedCount < 15  ? t.lvMsg3 : t.lvMsg4;
 
   statsEl.innerHTML = `
+    <div id="skill-level-title" style="font-size:15px;font-weight:700;margin-bottom:16px;">
+      <i class="fa-solid fa-trophy" style="color:var(--accent);margin-right:6px;"></i>
+      ${t.skillLevel}
+    </div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);
       gap:10px;margin-bottom:16px;">
       <div style="background:var(--danger-light);border-radius:var(--radius-md);
@@ -1755,7 +1761,7 @@ async function loadSkillStats() {
           ${totalTasks - watchedCount - confirmedCount}
         </div>
         <div style="font-size:10px;color:var(--text-secondary);margin-top:2px;">
-          未視聴
+          ${t.unwatched}
         </div>
       </div>
       <div style="background:var(--info-light);border-radius:var(--radius-md);
@@ -1764,7 +1770,7 @@ async function loadSkillStats() {
           ${watchedCount}
         </div>
         <div style="font-size:10px;color:var(--text-secondary);margin-top:2px;">
-          視聴済み
+          ${t.watched}
         </div>
       </div>
       <div style="background:var(--success-light);border-radius:var(--radius-md);
@@ -1773,14 +1779,14 @@ async function loadSkillStats() {
           ${confirmedCount}
         </div>
         <div style="font-size:10px;color:var(--text-secondary);margin-top:2px;">
-          確認済み
+          ${t.confirmed}
         </div>
       </div>
     </div>
 
     <div style="margin-bottom:16px;">
       <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-        <span style="font-size:13px;font-weight:600;">習得率</span>
+        <span style="font-size:13px;font-weight:600;">${t.masteryRate}</span>
         <span style="font-size:13px;font-weight:700;color:var(--primary);">
           ${progress}%
         </span>
@@ -1792,7 +1798,7 @@ async function loadSkillStats() {
           id="skill-progress-bar"></div>
       </div>
       <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">
-        店長に確認されたタスクが増えるほどレベルが上がります
+        ${t.skillDesc}
       </div>
     </div>
 
@@ -1891,17 +1897,23 @@ async function loadTaskSummary() {
       <div style="background:var(--danger-light);border-radius:var(--radius-md);
         padding:12px;text-align:center;">
         <div style="font-size:24px;font-weight:700;color:var(--danger);">${unwatched}</div>
-        <div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">未視聴</div>
+        <div data-summary-label="unwatched" style="font-size:11px;color:var(--text-secondary);margin-top:2px;">
+          ${(LANG_TEXTS[currentLang]||LANG_TEXTS['ja']).unwatched}
+        </div>
       </div>
       <div style="background:var(--info-light);border-radius:var(--radius-md);
         padding:12px;text-align:center;">
         <div style="font-size:24px;font-weight:700;color:var(--info);">${watched}</div>
-        <div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">視聴済み</div>
+        <div data-summary-label="watched" style="font-size:11px;color:var(--text-secondary);margin-top:2px;">
+          ${(LANG_TEXTS[currentLang]||LANG_TEXTS['ja']).watched}
+        </div>
       </div>
       <div style="background:var(--success-light);border-radius:var(--radius-md);
         padding:12px;text-align:center;">
         <div style="font-size:24px;font-weight:700;color:var(--success);">${confirmed}</div>
-        <div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">確認済み</div>
+        <div data-summary-label="confirmed" style="font-size:11px;color:var(--text-secondary);margin-top:2px;">
+          ${(LANG_TEXTS[currentLang]||LANG_TEXTS['ja']).confirmed}
+        </div>
       </div>
     </div>`;
 }
@@ -1950,7 +1962,7 @@ async function loadMyTasks(status) {
         box-shadow:var(--shadow-sm);">
         <i class="fa-solid fa-list-check"
           style="font-size:32px;margin-bottom:8px;display:block;"></i>
-        タスクはありません
+        ${(LANG_TEXTS[currentLang]||LANG_TEXTS['ja']).noTask}
       </div>`;
     return;
   }
@@ -1960,12 +1972,6 @@ async function loadMyTasks(status) {
     watched: 'var(--info)',
     confirmed: 'var(--success)'
   };
-  const statusLabels = {
-    unwatched: '未視聴',
-    watched: '視聴済み',
-    confirmed: '確認済み'
-  };
-
   listEl.innerHTML = tasks.map(t => `
     <div style="background:white;border-radius:var(--radius-md);
       padding:16px;margin-bottom:8px;box-shadow:var(--shadow-sm);
@@ -1974,22 +1980,22 @@ async function loadMyTasks(status) {
         align-items:start;margin-bottom:8px;">
         <div style="font-size:14px;font-weight:700;flex:1;
           padding-right:8px;">${t.videoTitle || ''}</div>
-        <span style="
+        <span data-status-label="${t.status}" style="
           background:${statusColors[t.status]};color:white;
           padding:2px 8px;border-radius:999px;
           font-size:11px;font-weight:600;white-space:nowrap;">
-          ${statusLabels[t.status] || t.status}
+          ${(LANG_TEXTS[currentLang]||LANG_TEXTS['ja'])[t.status] || t.status}
         </span>
       </div>
       <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;">
-        期日：${t.dueDate || '未設定'}
+        ${(LANG_TEXTS[currentLang]||LANG_TEXTS['ja']).dueDate}${t.dueDate || (LANG_TEXTS[currentLang]||LANG_TEXTS['ja']).notSet}
       </div>
       ${t.status === 'unwatched' ? `
-        <button onclick="goToTaskVideo('${t.videoId || ''}','${t.id}')" style="
+        <button data-watch-now onclick="goToTaskVideo('${t.videoId || ''}','${t.id}')" style="
           width:100%;padding:10px;background:var(--primary);color:white;
           border:none;border-radius:var(--radius-sm);font-family:var(--font);
           font-size:13px;font-weight:700;cursor:pointer;">
-          <i class="fa-solid fa-play"></i> 今すぐ確認する
+          <i class="fa-solid fa-play"></i> ${(LANG_TEXTS[currentLang]||LANG_TEXTS['ja']).watchNow}
         </button>` : ''}
     </div>`).join('');
 }
@@ -2016,6 +2022,7 @@ function goToTaskVideo(videoId, taskId) {
 
 async function renderMypage(content) {
   content.style.cssText = 'height:100%;overflow-y:auto;padding:16px;background:var(--bg);';
+  const t = LANG_TEXTS[currentLang] || LANG_TEXTS['ja'];
 
   content.innerHTML = `
     <div style="background:white;border-radius:var(--radius-lg);padding:24px;
@@ -2034,13 +2041,13 @@ async function renderMypage(content) {
         flex:1;padding:12px;background:var(--primary);color:white;
         border:none;border-radius:var(--radius-md);font-family:var(--font);
         font-size:13px;font-weight:700;cursor:pointer;">
-        <i class="fa-solid fa-heart"></i> いいね
+        <i class="fa-solid fa-heart"></i> ${t.liked}
       </button>
       <button onclick="showSavedVideos('saved')" id="btn-saved" style="
         flex:1;padding:12px;background:white;color:var(--text-secondary);
         border:1px solid var(--border);border-radius:var(--radius-md);
         font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;">
-        <i class="fa-solid fa-bookmark"></i> 保存済み
+        <i class="fa-solid fa-bookmark"></i> ${t.saved}
       </button>
     </div>
 
@@ -2048,17 +2055,16 @@ async function renderMypage(content) {
       <div style="background:white;border-radius:var(--radius-md);padding:24px;
         text-align:center;color:var(--text-muted);box-shadow:var(--shadow-sm);">
         <i class="fa-solid fa-heart" style="font-size:32px;margin-bottom:8px;display:block;"></i>
-        いいねした動画がここに表示されます
+        ${t.noLiked}
       </div>
     </div>
 
-
-    <button onclick="logout()" style="
+    <button data-logout-btn onclick="logout()" style="
       width:100%;padding:12px;background:white;
       border:1.5px solid var(--danger);border-radius:var(--radius-md);
       color:var(--danger);font-family:var(--font);font-size:14px;
       font-weight:600;cursor:pointer;">
-      <i class="fa-solid fa-sign-out-alt"></i> ログアウト
+      <i class="fa-solid fa-sign-out-alt"></i> ${t.logout}
     </button>`;
 
   // 初期表示でいいね一覧を読み込む
@@ -2104,7 +2110,7 @@ async function showSavedVideos(type) {
         <i class="fa-solid ${isLiked ? 'fa-heart' : 'fa-bookmark'}"
           style="font-size:32px;margin-bottom:8px;display:block;
           color:${isLiked ? 'var(--danger)' : 'var(--primary)'};"></i>
-        ${isLiked ? 'いいねした動画がありません' : '保存した動画がありません'}
+        ${isLiked ? (LANG_TEXTS[currentLang]||LANG_TEXTS['ja']).noLiked : (LANG_TEXTS[currentLang]||LANG_TEXTS['ja']).noSaved}
       </div>`;
     return;
   }
@@ -2157,7 +2163,7 @@ async function showSavedVideos(type) {
         padding:6px 12px;background:var(--primary-light);color:var(--primary);
         border:none;border-radius:var(--radius-sm);font-size:12px;
         font-weight:600;cursor:pointer;white-space:nowrap;">
-        見る
+        ${(LANG_TEXTS[currentLang]||LANG_TEXTS['ja']).watch}
       </button>
     </div>`).join('');
 }
@@ -5514,7 +5520,7 @@ async function likeVideo(videoId, btn) {
       );
       const dupSnap = await window._getDocs(dupQ);
       if (dupSnap.size > 0) {
-        showToast('すでにいいねしています');
+        showToast((LANG_TEXTS[currentLang]||LANG_TEXTS['ja']).alreadyLiked);
         return;
       }
     }
@@ -5534,7 +5540,7 @@ async function likeVideo(videoId, btn) {
     btn.style.transition = 'transform 0.2s ease';
   }
 
-  showToast('❤️');
+  showToast((LANG_TEXTS[currentLang]||LANG_TEXTS['ja']).likeToast);
 
   try {
     const companyId = currentUser?.companyId || 'company_001';
@@ -5687,7 +5693,7 @@ function openNotificationDrawer() {
     drawer.innerHTML = `
       <div style="padding:16px;border-bottom:1px solid var(--border);
         display:flex;justify-content:space-between;align-items:center;">
-        <div style="font-size:16px;font-weight:700;">通知</div>
+        <div style="font-size:16px;font-weight:700;">${(LANG_TEXTS[currentLang]||LANG_TEXTS['ja']).notifTitle}</div>
         <button onclick="closeNotificationDrawer()" style="
           background:none;border:none;cursor:pointer;font-size:20px;
           color:var(--text-muted);">
@@ -5820,7 +5826,7 @@ async function loadNotifications() {
         color:var(--text-muted);font-size:13px;">
         <i class="fa-solid fa-bell-slash"
           style="font-size:32px;margin-bottom:8px;display:block;"></i>
-        通知はありません
+        ${(LANG_TEXTS[currentLang]||LANG_TEXTS['ja']).noNotif}
       </div>`;
     return;
   }
@@ -5847,6 +5853,7 @@ async function loadNotifications() {
     const color = typeColors[n.type] || typeColors.default;
 
     // 時刻表示
+    const nt = LANG_TEXTS[currentLang] || LANG_TEXTS['ja'];
     const timeStr = (() => {
       if (!n.createdAt?.toDate) return '';
       const d = n.createdAt.toDate();
@@ -5855,10 +5862,10 @@ async function loadNotifications() {
       const mins = Math.floor(diff / 60000);
       const hours = Math.floor(diff / 3600000);
       const days = Math.floor(diff / 86400000);
-      if (mins < 1) return 'たった今';
-      if (mins < 60) return mins + '分前';
-      if (hours < 24) return hours + '時間前';
-      if (days < 7) return days + '日前';
+      if (mins < 1) return nt.justNow;
+      if (mins < 60) return mins + nt.minsAgo;
+      if (hours < 24) return hours + nt.hoursAgo;
+      if (days < 7) return days + nt.daysAgo;
       return d.toLocaleDateString('ja-JP', {
         month: 'numeric', day: 'numeric',
         hour: '2-digit', minute: '2-digit'
@@ -5891,7 +5898,7 @@ async function loadNotifications() {
               background:var(--primary);color:white;border:none;
               border-radius:var(--radius-sm);font-size:11px;
               font-weight:600;cursor:pointer;font-family:var(--font);">
-              タスクを確認する
+              ${(LANG_TEXTS[currentLang]||LANG_TEXTS['ja']).checkTask}
             </button>` : ''}
         </div>
       </div>`;
@@ -5931,6 +5938,8 @@ function openFeedbackModal(videoId, videoTitle) {
     background:rgba(0,0,0,0.5);z-index:2000;
     display:flex;align-items:flex-end;justify-content:center;`;
 
+  const t = LANG_TEXTS[currentLang] || LANG_TEXTS['ja'];
+
   const stamps = [
     { emoji:'😊', label:'わかった！' },
     { emoji:'🤔', label:'難しい…' },
@@ -5946,7 +5955,7 @@ function openFeedbackModal(videoId, videoTitle) {
       max-height:85vh;overflow-y:auto;">
 
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-        <div style="font-size:15px;font-weight:700;">リアクションを送る</div>
+        <div style="font-size:15px;font-weight:700;">${t.reactionTitle}</div>
         <button onclick="document.getElementById('feedback-modal').remove()" style="
           background:none;border:none;cursor:pointer;font-size:20px;color:var(--text-muted);">
           <i class="fa-solid fa-times"></i>
@@ -5955,7 +5964,7 @@ function openFeedbackModal(videoId, videoTitle) {
 
       <!-- スタンプ -->
       <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">
-        スタンプ
+        ${t.stampLabel}
       </div>
       <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:16px;">
         ${stamps.map((s,i) => `
@@ -5970,15 +5979,10 @@ function openFeedbackModal(videoId, videoTitle) {
 
       <!-- テキストリアクション -->
       <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">
-        メッセージ
+        ${t.msgLabel}
       </div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
-        ${[
-          'もう少し具体的に教えてほしい',
-          'ここをもっと詳しく知りたい',
-          '実際にやってみたい',
-          'このテーマの応用を知りたい'
-        ].map(text => `
+        ${[t.fb1, t.fb2, t.fb3, t.fb4].map(text => `
           <button onclick="selectFeedback(this,'${text}')" style="
             padding:10px 12px;background:var(--bg);border:1.5px solid var(--border);
             border-radius:var(--radius-sm);font-family:var(--font);
@@ -5991,7 +5995,7 @@ function openFeedbackModal(videoId, videoTitle) {
       <!-- 自由記述 -->
       <div style="margin-bottom:16px;">
         <textarea id="feedback-text" rows="2"
-          placeholder="自由にコメント（任意）"
+          placeholder="${t.fbPlaceholder}"
           style="width:100%;padding:10px 12px;border:1.5px solid var(--border);
           border-radius:var(--radius-sm);font-family:var(--font);font-size:13px;
           outline:none;resize:none;"></textarea>
@@ -6002,13 +6006,13 @@ function openFeedbackModal(videoId, videoTitle) {
           flex:1;padding:12px;background:var(--primary);color:white;
           border:none;border-radius:var(--radius-sm);font-family:var(--font);
           font-size:14px;font-weight:700;cursor:pointer;">
-          送信する
+          ${t.send}
         </button>
         <button onclick="document.getElementById('feedback-modal').remove()" style="
           padding:12px 16px;background:white;color:var(--text-secondary);
           border:1px solid var(--border);border-radius:var(--radius-sm);
           font-family:var(--font);font-size:13px;cursor:pointer;">
-          キャンセル
+          ${t.cancel}
         </button>
       </div>
     </div>`;
@@ -6046,7 +6050,7 @@ async function sendVideoFeedback(videoId, videoTitle) {
   const message = [window._selectedStamp, selected, freeText].filter(Boolean).join(' / ');
 
   if (!message) {
-    showToast('リアクションを選択してください', 'error');
+    showToast((LANG_TEXTS[currentLang]||LANG_TEXTS['ja']).selectReaction, 'error');
     return;
   }
 
@@ -6077,7 +6081,7 @@ async function sendVideoFeedback(videoId, videoTitle) {
       );
     }
     document.getElementById('feedback-modal')?.remove();
-    showToast('リアクションを送りました ✅');
+    showToast((LANG_TEXTS[currentLang]||LANG_TEXTS['ja']).reactionSent);
   } catch(e) {
     showToast('送信に失敗しました', 'error');
   }
@@ -6104,44 +6108,207 @@ function closeSidebar() {
 
 const LANG_TEXTS = {
   ja: {
-    feed: 'フィード', skills: 'スキル', tasks: 'タスク', mypage: 'マイページ',
-    understood: '理解できた', checked: 'チェック済み ✅',
-    more: 'もっと知りたい', search: '動画を検索...',
-    notification: '通知', noNotif: '通知はありません',
+    // タブ
+    feed: 'フィード', tasks: 'タスク', mypage: 'マイページ',
+    // フィード
+    search: '動画を検索...', genreAll: '全て',
+    watchedBtn: '視聴済みにする', watchedDone: '視聴済み ✅',
+    // タスク
+    tabAll: 'すべて', tabUnwatched: '未視聴',
+    tabWatched: '視聴済み', tabConfirmed: '確認済み',
+    noTask: 'タスクはありません',
+    watchNow: '今すぐ確認する',
+    dueDate: '期日：', notSet: '未設定',
+    skillLevel: 'スキルレベル', masteryRate: '習得率',
+    skillDesc: '店長に確認されたタスクが増えるほどレベルが上がります',
+    unwatched: '未視聴', watched: '視聴済み', confirmed: '確認済み',
+    // スキルレベルメッセージ
+    lvMsg0: 'タスクをこなしてスキルを積み上げよう！',
+    lvMsg1: 'いいスタート！続けよう 🔥',
+    lvMsg2: '成長中！素晴らしい 🌟',
+    lvMsg3: 'ベテランへの道！⭐',
+    lvMsg4: 'スキルマスター！👑',
+    // マイページ
+    liked: 'いいね', saved: '保存済み', logout: 'ログアウト',
+    watch: '見る',
+    noLiked: 'いいねした動画がありません',
+    noSaved: '保存した動画がありません',
+    // リアクション
+    reactionTitle: 'リアクションを送る',
+    stampLabel: 'スタンプ', msgLabel: 'メッセージ',
+    fb1: 'もう少し具体的に教えてほしい',
+    fb2: 'ここをもっと詳しく知りたい',
+    fb3: '実際にやってみたい',
+    fb4: 'このテーマの応用を知りたい',
+    fbPlaceholder: '自由にコメント（任意）',
+    send: '送信する', cancel: 'キャンセル',
+    reactionSent: 'リアクションを送りました ✅',
+    selectReaction: 'リアクションを選択してください',
+    // 通知
+    notifTitle: '通知', noNotif: '通知はありません',
+    justNow: 'たった今', minsAgo: '分前',
+    hoursAgo: '時間前', daysAgo: '日前',
+    checkTask: 'タスクを確認する',
+    // トースト
     likeToast: '❤️', savedToast: '保存しました 🔖',
     watchedToast: '視聴済みにしました ✅',
+    alreadyLiked: 'すでにいいねしています',
   },
   en: {
-    feed: 'Feed', skills: 'Skills', tasks: 'Tasks', mypage: 'My Page',
-    understood: 'Got it!', checked: 'Checked ✅',
-    more: 'Tell me more', search: 'Search videos...',
-    notification: 'Notifications', noNotif: 'No notifications',
+    feed: 'Feed', tasks: 'Tasks', mypage: 'My Page',
+    search: 'Search videos...', genreAll: 'All',
+    watchedBtn: 'Mark as watched', watchedDone: 'Watched ✅',
+    tabAll: 'All', tabUnwatched: 'Unwatched',
+    tabWatched: 'Watched', tabConfirmed: 'Confirmed',
+    noTask: 'No tasks',
+    watchNow: 'Watch now',
+    dueDate: 'Due: ', notSet: 'Not set',
+    skillLevel: 'Skill Level', masteryRate: 'Progress',
+    skillDesc: 'Level up as your manager confirms your tasks',
+    unwatched: 'Unwatched', watched: 'Watched', confirmed: 'Confirmed',
+    lvMsg0: 'Complete tasks to level up!',
+    lvMsg1: 'Great start! Keep going 🔥',
+    lvMsg2: 'Growing! Excellent 🌟',
+    lvMsg3: 'On the way to veteran! ⭐',
+    lvMsg4: 'Skill Master! 👑',
+    liked: 'Liked', saved: 'Saved', logout: 'Log out',
+    watch: 'Watch',
+    noLiked: 'No liked videos',
+    noSaved: 'No saved videos',
+    reactionTitle: 'Send Reaction',
+    stampLabel: 'Stamp', msgLabel: 'Message',
+    fb1: 'Tell me more specifically',
+    fb2: 'I want to know more details',
+    fb3: 'I want to try this',
+    fb4: 'I want to know applications of this topic',
+    fbPlaceholder: 'Free comment (optional)',
+    send: 'Send', cancel: 'Cancel',
+    reactionSent: 'Reaction sent ✅',
+    selectReaction: 'Please select a reaction',
+    notifTitle: 'Notifications', noNotif: 'No notifications',
+    justNow: 'Just now', minsAgo: ' min ago',
+    hoursAgo: ' hr ago', daysAgo: ' days ago',
+    checkTask: 'Check tasks',
     likeToast: '❤️', savedToast: 'Saved 🔖',
     watchedToast: 'Marked as watched ✅',
+    alreadyLiked: 'Already liked',
   },
   vi: {
-    feed: 'Trang chủ', skills: 'Kỹ năng', tasks: 'Nhiệm vụ', mypage: 'Trang cá nhân',
-    understood: 'Đã hiểu!', checked: 'Đã kiểm tra ✅',
-    more: 'Muốn biết thêm', search: 'Tìm kiếm video...',
-    notification: 'Thông báo', noNotif: 'Không có thông báo',
+    feed: 'Trang chủ', tasks: 'Nhiệm vụ', mypage: 'Trang cá nhân',
+    search: 'Tìm kiếm video...', genreAll: 'Tất cả',
+    watchedBtn: 'Đánh dấu đã xem', watchedDone: 'Đã xem ✅',
+    tabAll: 'Tất cả', tabUnwatched: 'Chưa xem',
+    tabWatched: 'Đã xem', tabConfirmed: 'Đã xác nhận',
+    noTask: 'Không có nhiệm vụ',
+    watchNow: 'Xem ngay',
+    dueDate: 'Hạn: ', notSet: 'Chưa đặt',
+    skillLevel: 'Cấp độ kỹ năng', masteryRate: 'Tiến độ',
+    skillDesc: 'Cấp độ tăng khi quản lý xác nhận nhiệm vụ',
+    unwatched: 'Chưa xem', watched: 'Đã xem', confirmed: 'Đã xác nhận',
+    lvMsg0: 'Hoàn thành nhiệm vụ để nâng cấp!',
+    lvMsg1: 'Khởi đầu tốt! Tiếp tục 🔥',
+    lvMsg2: 'Đang phát triển! Xuất sắc 🌟',
+    lvMsg3: 'Trên đường trở thành chuyên gia! ⭐',
+    lvMsg4: 'Bậc thầy kỹ năng! 👑',
+    liked: 'Đã thích', saved: 'Đã lưu', logout: 'Đăng xuất',
+    watch: 'Xem',
+    noLiked: 'Không có video đã thích',
+    noSaved: 'Không có video đã lưu',
+    reactionTitle: 'Gửi phản ứng',
+    stampLabel: 'Tem', msgLabel: 'Tin nhắn',
+    fb1: 'Hãy giải thích cụ thể hơn',
+    fb2: 'Tôi muốn biết thêm chi tiết',
+    fb3: 'Tôi muốn thử điều này',
+    fb4: 'Tôi muốn biết ứng dụng của chủ đề này',
+    fbPlaceholder: 'Bình luận tự do (tùy chọn)',
+    send: 'Gửi', cancel: 'Hủy',
+    reactionSent: 'Đã gửi phản ứng ✅',
+    selectReaction: 'Vui lòng chọn phản ứng',
+    notifTitle: 'Thông báo', noNotif: 'Không có thông báo',
+    justNow: 'Vừa xong', minsAgo: ' phút trước',
+    hoursAgo: ' giờ trước', daysAgo: ' ngày trước',
+    checkTask: 'Kiểm tra nhiệm vụ',
     likeToast: '❤️', savedToast: 'Đã lưu 🔖',
-    watchedToast: 'Đã xem ✅',
+    watchedToast: 'Đã đánh dấu đã xem ✅',
+    alreadyLiked: 'Đã thích rồi',
   },
   my: {
-    feed: 'Feed', skills: 'ကျွမ်းကျင်မှု', tasks: 'တာဝန်', mypage: 'ကျွန်ုပ်',
-    understood: 'နားလည်ပြီ！', checked: 'စစ်ဆေးပြီး ✅',
-    more: 'ပိုသိချင်တယ်', search: 'ဗီဒီယိုရှာရန်...',
-    notification: 'အကြောင်းကြားချက်', noNotif: 'အကြောင်းကြားချက်မရှိ',
+    feed: 'ဗီဒီယို', tasks: 'တာဝန်', mypage: 'ကျွန်ုပ်',
+    search: 'ဗီဒီယိုရှာရန်...', genreAll: 'အားလုံး',
+    watchedBtn: 'ကြည့်ပြီးဟုမှတ်သား', watchedDone: 'ကြည့်ပြီး ✅',
+    tabAll: 'အားလုံး', tabUnwatched: 'မကြည့်ရသေး',
+    tabWatched: 'ကြည့်ပြီး', tabConfirmed: 'အတည်ပြုပြီး',
+    noTask: 'တာဝန်မရှိပါ',
+    watchNow: 'ယခုကြည့်ရန်',
+    dueDate: 'သတ်မှတ်ရက်: ', notSet: 'မသတ်မှတ်ရသေး',
+    skillLevel: 'ကျွမ်းကျင်မှုအဆင့်', masteryRate: 'တိုးတက်မှု',
+    skillDesc: 'မန်နေဂျာအတည်ပြုသည့်တာဝန်များများ အဆင့်မြင့်တက်သည်',
+    unwatched: 'မကြည့်ရသေး', watched: 'ကြည့်ပြီး', confirmed: 'အတည်ပြုပြီး',
+    lvMsg0: 'အဆင့်မြင့်ရန် တာဝန်ပြီးစေပါ！',
+    lvMsg1: 'ကောင်းသောစတင်မှု！ ဆက်လုပ်ပါ 🔥',
+    lvMsg2: 'တိုးတက်နေသည်！ 🌟',
+    lvMsg3: 'ကျွမ်းကျင်သူဖြစ်ရန် လမ်းပေါ်တွင် ⭐',
+    lvMsg4: 'ကျွမ်းကျင်မှုမာစတာ！ 👑',
+    liked: 'ကြိုက်သည်', saved: 'သိမ်းဆည်းပြီး', logout: 'ထွက်ရန်',
+    watch: 'ကြည့်ရန်',
+    noLiked: 'ကြိုက်သောဗီဒီယိုမရှိ',
+    noSaved: 'သိမ်းဆည်းထားသောဗီဒီယိုမရှိ',
+    reactionTitle: 'တုံ့ပြန်မှုပေးပို့ရန်',
+    stampLabel: 'စတန်ပ်', msgLabel: 'မက်ဆေ့ဂျ်',
+    fb1: 'ပိုတိကျစွာပြောပြပါ',
+    fb2: 'အသေးစိတ်ပိုသိချင်သည်',
+    fb3: 'ကြိုးစားကြည့်ချင်သည်',
+    fb4: 'ဤဘာသာရပ်၏အသုံးချမှုသိချင်သည်',
+    fbPlaceholder: 'လွတ်လပ်သောမှတ်ချက် (ရွေးချယ်နိုင်)',
+    send: 'ပေးပို့ရန်', cancel: 'ပယ်ဖျက်ရန်',
+    reactionSent: 'တုံ့ပြန်မှုပေးပို့ပြီး ✅',
+    selectReaction: 'တုံ့ပြန်မှုရွေးချယ်ပါ',
+    notifTitle: 'အကြောင်းကြားချက်', noNotif: 'အကြောင်းကြားချက်မရှိ',
+    justNow: 'ယခုလေး', minsAgo: ' မိနစ်အကြာ',
+    hoursAgo: ' နာရီအကြာ', daysAgo: ' ရက်အကြာ',
+    checkTask: 'တာဝန်စစ်ဆေးရန်',
     likeToast: '❤️', savedToast: 'သိမ်းဆည်းပြီး 🔖',
-    watchedToast: 'ကြည့်ပြီးသောအဖြစ်မှတ်သား ✅',
+    watchedToast: 'ကြည့်ပြီးဟုမှတ်သားပြီး ✅',
+    alreadyLiked: 'ကြိုက်ပြီးသား',
   },
   ne: {
-    feed: 'फिड', skills: 'सीप', tasks: 'कार्य', mypage: 'मेरो पृष्ठ',
-    understood: 'बुझें!', checked: 'जाँच गरियो ✅',
-    more: 'थप जान्न चाहन्छु', search: 'भिडियो खोज्नुस्...',
-    notification: 'सूचना', noNotif: 'कुनै सूचना छैन',
+    feed: 'फिड', tasks: 'कार्य', mypage: 'मेरो पृष्ठ',
+    search: 'भिडियो खोज्नुस्...', genreAll: 'सबै',
+    watchedBtn: 'हेरिएको चिह्नित गर्नुस्', watchedDone: 'हेरिएको ✅',
+    tabAll: 'सबै', tabUnwatched: 'नहेरिएको',
+    tabWatched: 'हेरिएको', tabConfirmed: 'पुष्टि भएको',
+    noTask: 'कुनै कार्य छैन',
+    watchNow: 'अहिले हेर्नुस्',
+    dueDate: 'म्याद: ', notSet: 'तोकिएको छैन',
+    skillLevel: 'सीप स्तर', masteryRate: 'प्रगति',
+    skillDesc: 'प्रबन्धकले कार्य पुष्टि गर्दै जाँदा स्तर बढ्छ',
+    unwatched: 'नहेरिएको', watched: 'हेरिएको', confirmed: 'पुष्टि भएको',
+    lvMsg0: 'स्तर बढाउन कार्य पूरा गर्नुस्！',
+    lvMsg1: 'राम्रो सुरुवात！ जारी राख्नुस् 🔥',
+    lvMsg2: 'बढिरहेको छ！ उत्कृष्ट 🌟',
+    lvMsg3: 'विशेषज्ञ बन्ने बाटोमा ⭐',
+    lvMsg4: 'सीप मास्टर！ 👑',
+    liked: 'मनपर्यो', saved: 'सुरक्षित', logout: 'बाहिर निस्कनुस्',
+    watch: 'हेर्नुस्',
+    noLiked: 'मनपरेका भिडियो छैनन्',
+    noSaved: 'सुरक्षित भिडियो छैनन्',
+    reactionTitle: 'प्रतिक्रिया पठाउनुस्',
+    stampLabel: 'स्ट्याम्प', msgLabel: 'सन्देश',
+    fb1: 'थप विशिष्ट रूपमा बताउनुस्',
+    fb2: 'थप विवरण जान्न चाहन्छु',
+    fb3: 'यो प्रयास गर्न चाहन्छु',
+    fb4: 'यस विषयको प्रयोग जान्न चाहन्छु',
+    fbPlaceholder: 'स्वतन्त्र टिप्पणी (ऐच्छिक)',
+    send: 'पठाउनुस्', cancel: 'रद्द गर्नुस्',
+    reactionSent: 'प्रतिक्रिया पठाइयो ✅',
+    selectReaction: 'कृपया प्रतिक्रिया छान्नुस्',
+    notifTitle: 'सूचना', noNotif: 'कुनै सूचना छैन',
+    justNow: 'अभि', minsAgo: ' मिनेट अघि',
+    hoursAgo: ' घण्टा अघि', daysAgo: ' दिन अघि',
+    checkTask: 'कार्य जाँच गर्नुस्',
     likeToast: '❤️', savedToast: 'सुरक्षित गरियो 🔖',
     watchedToast: 'हेरिएको चिह्नित गरियो ✅',
+    alreadyLiked: 'पहिले नै मनपराइसकेको',
   },
 };
 
@@ -6149,26 +6316,85 @@ function changeLang(lang) {
   currentLang = lang;
   const t = LANG_TEXTS[lang] || LANG_TEXTS['ja'];
 
-  // タブラベルを更新
-  const tabMap = { feed: t.feed, skills: t.skills, tasks: t.tasks, mypage: t.mypage };
-  Object.entries(tabMap).forEach(([key, label]) => {
+  // ボトムタブのラベルを更新
+  const tabIcons = {
+    feed: 'fa-play', tasks: 'fa-list-check', mypage: 'fa-user'
+  };
+  const tabKeys = { feed: t.feed, tasks: t.tasks, mypage: t.mypage };
+  Object.entries(tabKeys).forEach(([key, label]) => {
     const tab = document.getElementById('tab-' + key);
     if (tab) {
-      tab.innerHTML = `<i class="fa-solid ${
-        key==='feed'?'fa-play':key==='skills'?'fa-chart-line':
-        key==='tasks'?'fa-list-check':'fa-user'
-      }" style="font-size:20px;"></i><br>${label}`;
-      tab.style.fontSize = '10px';
+      tab.innerHTML = `
+        <i class="fa-solid ${tabIcons[key]}" style="font-size:20px;"></i>
+        <span style="font-size:10px;">${label}</span>`;
     }
   });
 
-  // 検索プレースホルダーを更新
+  // 検索プレースホルダー
   const searchInput = document.getElementById('feed-search');
   if (searchInput) searchInput.placeholder = t.search;
+
+  // ジャンル「全て」ボタン
+  const genreAllBtn = document.getElementById('genre-all');
+  if (genreAllBtn) genreAllBtn.textContent = t.genreAll;
+
+  // タスクフィルタータブ
+  const taskTabMap = {
+    'all': t.tabAll,
+    'unwatched': t.tabUnwatched,
+    'watched': t.tabWatched,
+    'confirmed': t.tabConfirmed
+  };
+  Object.entries(taskTabMap).forEach(([key, label]) => {
+    const btn = document.getElementById('task-tab-' + key);
+    if (btn) btn.textContent = label;
+  });
+
+  // タスク一覧内のステータスラベル・ボタンを更新
+  document.querySelectorAll('[data-status-label]').forEach(el => {
+    const status = el.dataset.statusLabel;
+    if (status === 'unwatched') el.textContent = t.unwatched;
+    if (status === 'watched') el.textContent = t.watched;
+    if (status === 'confirmed') el.textContent = t.confirmed;
+  });
+  document.querySelectorAll('[data-watch-now]').forEach(el => {
+    el.innerHTML = `<i class="fa-solid fa-play"></i> ${t.watchNow}`;
+  });
+
+  // タスクサマリーのラベル
+  document.querySelectorAll('[data-summary-label]').forEach(el => {
+    const key = el.dataset.summaryLabel;
+    if (key === 'unwatched') el.textContent = t.unwatched;
+    if (key === 'watched') el.textContent = t.watched;
+    if (key === 'confirmed') el.textContent = t.confirmed;
+  });
+
+  // スキルレベルタイトル
+  const skillTitle = document.getElementById('skill-level-title');
+  if (skillTitle) skillTitle.textContent = t.skillLevel;
+
+  // マイページボタン
+  const likedBtn = document.getElementById('btn-liked');
+  if (likedBtn) likedBtn.innerHTML = `<i class="fa-solid fa-heart"></i> ${t.liked}`;
+  const savedBtn = document.getElementById('btn-saved');
+  if (savedBtn) savedBtn.innerHTML = `<i class="fa-solid fa-bookmark"></i> ${t.saved}`;
+
+  // ログアウトボタン（マイページ）
+  document.querySelectorAll('[data-logout-btn]').forEach(el => {
+    el.innerHTML = `<i class="fa-solid fa-sign-out-alt"></i> ${t.logout}`;
+  });
 
   // langセレクトの値を同期
   const sel = document.getElementById('lang-select');
   if (sel) sel.value = lang;
+
+  // 現在表示中のページを再レンダリングして反映
+  const content = document.getElementById('main-content');
+  if (content && currentPage) {
+    if (currentPage === 'tasks') renderTasks(content);
+    else if (currentPage === 'mypage') renderMypage(content);
+    else if (currentPage === 'feed') renderFeed(content);
+  }
 }
 async function generateInvite(role) {
   if (!currentUser) return;
