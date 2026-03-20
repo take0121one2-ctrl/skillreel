@@ -2316,6 +2316,7 @@ function renderFeed(content) {
 async function loadSkillStats() {
   const statsEl = document.getElementById('skill-stats');
   if (!statsEl) return;
+  if (!currentUser?.uid) return;
 
   const uid = currentUser?.uid || '';
   let confirmedCount = 0;
@@ -2455,16 +2456,10 @@ async function renderTasks(content) {
     <div id="task-list" style="margin-bottom:24px;"></div>
 
     <!-- スキルレベル -->
-    <div style="background:white;border-radius:var(--radius-lg);
+    <div id="skill-stats" style="background:white;border-radius:var(--radius-lg);
       padding:20px;box-shadow:var(--shadow-sm);">
-      <div style="font-size:15px;font-weight:700;margin-bottom:16px;">
-        <i class="fa-solid fa-trophy" style="color:var(--accent);margin-right:6px;"></i>
-        スキルレベル
-      </div>
-      <div id="skill-stats">
-        <div style="text-align:center;color:var(--text-muted);font-size:13px;">
-          <i class="fa-solid fa-spinner fa-spin"></i>
-        </div>
+      <div style="text-align:center;color:var(--text-muted);font-size:13px;">
+        <i class="fa-solid fa-spinner fa-spin"></i>
       </div>
     </div>`;
 
@@ -4205,7 +4200,7 @@ async function generateManagerStaffInvite() {
 
   const storeId = currentUser.storeId || '';
   const storeName = currentUser.storeName || '';
-  const companyId = currentUser.companyId || 'company_001';
+  const companyId = currentUser?.companyId || '';
 
   if (!storeId) {
     showToast('店舗IDが設定されていません。本部に連絡してください。', 'error');
@@ -4223,7 +4218,7 @@ async function generateManagerStaffInvite() {
           companyId,
           storeId,
           storeName,
-          createdBy: currentUser.uid,
+          createdBy: currentUser?.uid || '',
           used: false,
           createdAt: window._serverTimestamp()
         }
@@ -4689,10 +4684,10 @@ async function generateStoreInvite(role, storeId, storeName) {
         window._doc(window._db, 'invites', token), {
           token,
           role,
-          companyId: currentUser.companyId || 'company_001',
+          companyId: currentUser?.companyId || '',
           storeId,
           storeName,
-          createdBy: currentUser.uid,
+          createdBy: currentUser?.uid || '',
           used: false,
           createdAt: window._serverTimestamp()
         }
@@ -5420,7 +5415,7 @@ async function saveVideoEdit(videoId) {
       const newYoutubeId = extractYouTubeId(newVideoUrl);
       if (newYoutubeId) {
         updateData.youtubeId = newYoutubeId;
-        updateData.videoURL = `https://www.youtube.com/embed/${newYoutubeId}?autoplay=1&loop=1&playlist=${newYoutubeId}&mute=1`;
+        updateData.videoURL = `https://www.youtube.com/embed/${newYoutubeId}?autoplay=1&loop=1&playlist=${newYoutubeId}&mute=1&cc_load_policy=1&cc_lang_pref=ja`;
         updateData.thumbnailURL = newThumbUrl ||
           `https://img.youtube.com/vi/${newYoutubeId}/hqdefault.jpg`;
       }
@@ -7252,10 +7247,10 @@ async function generateInvite(role) {
         window._doc(window._db, 'invites', token), {
           token,
           role,
-          companyId: currentUser.companyId || 'company_001',
-          storeId: currentUser.storeId || 'store_001',
+          companyId: currentUser?.companyId || '',
+          storeId: currentUser?.storeId || '',
           storeName: currentUser.storeName || '',
-          createdBy: currentUser.uid,
+          createdBy: currentUser?.uid || '',
           used: false,
           createdAt: window._serverTimestamp()
         }
