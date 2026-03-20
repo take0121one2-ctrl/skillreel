@@ -2214,7 +2214,7 @@ function setupStaffLayout() {
         const uid = currentUser?.uid || '';
         const role = currentUser?.role || 'staff';
         const storeId = currentUser?.storeId || '';
-        const companyId = currentUser?.companyId || 'company_001';
+        const companyId = currentUser?.companyId || '';
 
         const q = window._query(
           window._collection(window._db, 'notifications'),
@@ -2724,7 +2724,7 @@ async function showSavedVideos(type) {
     if (window._getDocs && window._collection) {
       const allQ = window._query(
         window._collection(window._db, 'videos'),
-        window._where('companyId', '==', currentUser?.companyId || 'company_001')
+        window._where('companyId', '==', currentUser?.companyId || '')
       );
       const allSnap = await window._getDocs(allQ);
       allSnap.forEach(d => {
@@ -2909,7 +2909,7 @@ async function renderManagerStoreStock(content) {
     if (window._getDocs && window._query) {
       const q = window._query(
         window._collection(window._db, 'videos'),
-        window._where('storeId', '==', currentUser?.storeId || 'store_001'),
+        window._where('storeId', '==', currentUser?.storeId || ''),
         window._where('channel', '==', 'store'),
         window._where('published', '==', true)
       );
@@ -3008,7 +3008,7 @@ function openStoreStockPlayer(youtubeId) {
       <div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;
         border-radius:var(--radius-lg);">
         <iframe
-          src="https://www.youtube.com/embed/${youtubeId}?autoplay=1&cc_load_policy=1&cc_lang_pref=ja"
+          src="https://www.youtube.com/embed/${youtubeId}?autoplay=1&loop=1&playlist=${youtubeId}&cc_load_policy=1&cc_lang_pref=ja"
           style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope"
           allowfullscreen>
@@ -3103,7 +3103,7 @@ async function confirmTask(taskId) {
 
 async function loadManagerDashboardData() {
   const storeId = currentUser?.storeId || '';
-  const companyId = currentUser?.companyId || 'company_001';
+  const companyId = currentUser?.companyId || '';
 
   if (!storeId) {
     const actionEl = document.getElementById('mgr-action-list');
@@ -3456,7 +3456,7 @@ async function loadVideosByFolder(folder) {
   try {
     if (window._getDocs && window._query) {
       let constraints = [
-        window._where('companyId', '==', currentUser?.companyId || 'company_001'),
+        window._where('companyId', '==', currentUser?.companyId || ''),
         window._where('published', '==', true)
       ];
       if (folder === '新人教育') {
@@ -3560,7 +3560,7 @@ async function sendOnboardingTasks() {
     if (window._getDocs && window._query) {
       const q = window._query(
         window._collection(window._db, 'users'),
-        window._where('storeId', '==', currentUser?.storeId || 'store_001'),
+        window._where('storeId', '==', currentUser?.storeId || ''),
         window._where('role', '==', 'staff')
       );
       const snap = await window._getDocs(q);
@@ -3593,7 +3593,7 @@ async function executeOnboardingTasks() {
     if (window._getDocs && window._query) {
       const q = window._query(
         window._collection(window._db, 'videos'),
-        window._where('companyId', '==', currentUser?.companyId || 'company_001'),
+        window._where('companyId', '==', currentUser?.companyId || ''),
         window._where('isOnboarding', '==', true),
         window._where('published', '==', true)
       );
@@ -3618,8 +3618,8 @@ async function executeOnboardingTasks() {
               assignedTo: uid,
               assignedBy: currentUser?.uid,
               assignerName: currentUser?.name,
-              storeId: currentUser?.storeId || 'store_001',
-              companyId: currentUser?.companyId || 'company_001',
+              storeId: currentUser?.storeId || '',
+              companyId: currentUser?.companyId || '',
               status: 'unwatched',
               dueDate: due,
               isOnboarding: true,
@@ -3662,7 +3662,7 @@ async function loadManagerTaskForm() {
 
       const vq = window._query(
         window._collection(window._db, 'videos'),
-        window._where('companyId', '==', currentUser?.companyId || 'company_001'),
+        window._where('companyId', '==', currentUser?.companyId || ''),
         window._where('published', '==', true)
       );
       const vs = await window._getDocs(vq);
@@ -3712,7 +3712,7 @@ async function sendTasks() {
             assignedBy: currentUser?.uid || '',
             assignerName: currentUser?.name || '',
             storeId: currentUser?.storeId || '',
-            companyId: currentUser?.companyId || 'company_001',
+            companyId: currentUser?.companyId || '',
             status: 'unwatched',
             dueDate: due,
             createdAt: window._serverTimestamp()
@@ -3732,7 +3732,7 @@ async function sendTasks() {
           window._collection(window._db, 'notifications'), {
             type: 'new_task',
             message: `${currentUser?.name || '店長'}から新しいタスクが届きました`,
-            companyId: currentUser?.companyId || 'company_001',
+            companyId: currentUser?.companyId || '',
             targetUserId: uid,
             targetRole: 'staff',
             targetStoreId: currentUser?.storeId || '',
@@ -3795,7 +3795,7 @@ async function loadManagerTasks(status) {
             window._where('status', '==', status)
           ]
         : [
-            window._where('companyId', '==', currentUser?.companyId || 'company_001'),
+            window._where('companyId', '==', currentUser?.companyId || ''),
             window._where('status', '==', status)
           ];
 
@@ -3943,7 +3943,7 @@ async function renderManagerStaff(content) {
       // storeIdが一致する全ユーザーを取得
       const q = window._query(
         window._collection(window._db, 'users'),
-        window._where('storeId', '==', currentUser?.storeId || 'store_001')
+        window._where('storeId', '==', currentUser?.storeId || '')
       );
       const snap = await window._getDocs(q);
       snap.forEach(d => {
@@ -4106,7 +4106,7 @@ async function sendRequest() {
           status: '未対応',
           fromStore: currentUser?.storeName || '',
           fromManager: currentUser?.name || '',
-          companyId: currentUser?.companyId || 'company_001',
+          companyId: currentUser?.companyId || '',
           createdAt: window._serverTimestamp()
         }
       );
@@ -4114,7 +4114,7 @@ async function sendRequest() {
         window._collection(window._db, 'notifications'), {
           type: 'request',
           message: `${currentUser?.storeName||''}から改善リクエスト：「${detail.slice(0,30)}...」`,
-          companyId: currentUser?.companyId || 'company_001',
+          companyId: currentUser?.companyId || '',
           targetRole: 'headquarters',
           read: false,
           createdAt: window._serverTimestamp()
@@ -4139,7 +4139,7 @@ async function loadSentRequests() {
     if (window._getDocs && window._query) {
       const q = window._query(
         window._collection(window._db, 'requests'),
-        window._where('companyId', '==', currentUser?.companyId || 'company_001'),
+        window._where('companyId', '==', currentUser?.companyId || ''),
         window._where('fromStore', '==', currentUser?.storeName || '')
       );
       const snap = await window._getDocs(q);
@@ -4477,7 +4477,7 @@ async function loadHQUploadList() {
     if (window._getDocs && window._query) {
       const q = window._query(
         window._collection(window._db, 'videos'),
-        window._where('companyId', '==', currentUser?.companyId || 'company_001'),
+        window._where('companyId', '==', currentUser?.companyId || ''),
         window._where('uploadedBy', '==', currentUser?.uid || '')
       );
       const snap = await window._getDocs(q);
@@ -4562,7 +4562,7 @@ async function loadStoreList() {
     if (window._getDocs && window._query) {
       const q = window._query(
         window._collection(window._db, 'stores'),
-        window._where('companyId', '==', currentUser?.companyId || 'company_001')
+        window._where('companyId', '==', currentUser?.companyId || '')
       );
       const snap = await window._getDocs(q);
       snap.forEach(d => {
@@ -4853,7 +4853,7 @@ async function saveStore(storeDocId) {
       storeId,
       address: address || '',
       phone: phone || '',
-      companyId: currentUser?.companyId || 'company_001',
+      companyId: currentUser?.companyId || '',
       updatedAt: window._serverTimestamp()
     };
 
@@ -4939,7 +4939,7 @@ async function loadHQDashboardData() {
 
     const usersQ = window._query(
       window._collection(window._db, 'users'),
-      window._where('companyId', '==', currentUser?.companyId || 'company_001')
+      window._where('companyId', '==', currentUser?.companyId || '')
     );
     const usersSnap = await window._getDocs(usersQ);
     let staffCount = 0;
@@ -4956,7 +4956,7 @@ async function loadHQDashboardData() {
 
     const pendingQ = window._query(
       window._collection(window._db, 'videos'),
-      window._where('companyId', '==', currentUser?.companyId || 'company_001'),
+      window._where('companyId', '==', currentUser?.companyId || ''),
       window._where('status', '==', 'pending')
     );
     const pendingSnap = await window._getDocs(pendingQ);
@@ -4965,7 +4965,7 @@ async function loadHQDashboardData() {
 
     const videosQ = window._query(
       window._collection(window._db, 'videos'),
-      window._where('companyId', '==', currentUser?.companyId || 'company_001'),
+      window._where('companyId', '==', currentUser?.companyId || ''),
       window._where('published', '==', true)
     );
     const videosSnap = await window._getDocs(videosQ);
@@ -5002,7 +5002,7 @@ async function loadHQDashboardData() {
         // 全ユーザーを取得して店舗別にグループ化
         const usersQ2 = window._query(
           window._collection(window._db, 'users'),
-          window._where('companyId', '==', currentUser?.companyId || 'company_001')
+          window._where('companyId', '==', currentUser?.companyId || '')
         );
         const usersSnap2 = await window._getDocs(usersQ2);
         const userStoreMap = {};
@@ -5019,7 +5019,7 @@ async function loadHQDashboardData() {
         // taskAssignmentsからconfirmed（理解した）数を集計
         const taskQ = window._query(
           window._collection(window._db, 'taskAssignments'),
-          window._where('companyId', '==', currentUser?.companyId || 'company_001'),
+          window._where('companyId', '==', currentUser?.companyId || ''),
           window._where('status', '==', 'confirmed')
         );
         const taskSnap = await window._getDocs(taskQ);
@@ -5134,7 +5134,7 @@ async function loadHQVideos(filter) {
   try {
     if (window._getDocs && window._query) {
       let constraints = [
-        window._where('companyId', '==', currentUser?.companyId || 'company_001')
+        window._where('companyId', '==', currentUser?.companyId || '')
       ];
       if (filter === 'pending') {
         constraints.push(window._where('status', '==', 'pending'));
@@ -5402,7 +5402,7 @@ async function saveVideoEdit(videoId) {
   try {
     const updateData = { title, channel, genre, description: desc, published };
 
-    const companyId = currentUser?.companyId || 'company_001';
+    const companyId = currentUser?.companyId || '';
     if (newVideoUrl) {
       function extractYouTubeId(url) {
         const patterns = [
@@ -5574,7 +5574,7 @@ async function renderHQReview(content) {
     if (window._getDocs && window._query) {
       const q = window._query(
         window._collection(window._db, 'videos'),
-        window._where('companyId', '==', currentUser?.companyId || 'company_001'),
+        window._where('companyId', '==', currentUser?.companyId || ''),
         window._where('status', '==', 'pending')
       );
       const snap = await window._getDocs(q);
@@ -5680,7 +5680,7 @@ async function renderHQStaff(content) {
     if (window._getDocs && window._query) {
       const q = window._query(
         window._collection(window._db, 'users'),
-        window._where('companyId', '==', currentUser?.companyId || 'company_001'),
+        window._where('companyId', '==', currentUser?.companyId || ''),
         window._where('role', '==', 'manager')
       );
       const snap = await window._getDocs(q);
@@ -5726,7 +5726,7 @@ async function renderHQStaffList(storeId) {
   try {
     if (window._getDocs && window._query) {
       let constraints = [
-        window._where('companyId', '==', currentUser?.companyId || 'company_001')
+        window._where('companyId', '==', currentUser?.companyId || '')
       ];
       if (storeId !== 'all') {
         constraints.push(window._where('storeId', '==', storeId));
@@ -5886,8 +5886,9 @@ async function loadFeedVideos() {
     let videos = [];
 
     if (window._getDocs && window._collection && window._query) {
-      const companyId = currentUser?.companyId || 'company_001';
-      const storeId = currentUser?.storeId || 'store_001';
+      const companyId = currentUser?.companyId || '';
+      const storeId = currentUser?.storeId || '';
+      if (!companyId) return;
 
       if (currentChannel === 'common') {
         // 全店共通：companyIdが一致するofficial動画
@@ -5898,10 +5899,14 @@ async function loadFeedVideos() {
           window._where('channel', '==', 'common')
         );
         const snap = await window._getDocs(q);
-        snap.forEach(doc => videos.push({ id: doc.id, ...doc.data() }));
+        snap.forEach(doc => {
+          const data = doc.data();
+          if (!data.deleted) videos.push({ id: doc.id, ...data });
+        });
 
       } else if (currentChannel === 'store') {
         // 店舗ストック：自分のstoreIdの動画のみ
+        if (!storeId) return;
         const q = window._query(
           window._collection(window._db, 'videos'),
           window._where('companyId', '==', companyId),
@@ -5910,7 +5915,10 @@ async function loadFeedVideos() {
           window._where('storeId', '==', storeId)
         );
         const snap = await window._getDocs(q);
-        snap.forEach(doc => videos.push({ id: doc.id, ...doc.data() }));
+        snap.forEach(doc => {
+          const data = doc.data();
+          if (!data.deleted) videos.push({ id: doc.id, ...data });
+        });
 
       } else if (currentChannel === 'pr') {
         // 広報：companyId一致
@@ -5921,7 +5929,10 @@ async function loadFeedVideos() {
           window._where('channel', '==', 'pr')
         );
         const snap = await window._getDocs(q);
-        snap.forEach(doc => videos.push({ id: doc.id, ...doc.data() }));
+        snap.forEach(doc => {
+          const data = doc.data();
+          if (!data.deleted) videos.push({ id: doc.id, ...data });
+        });
       }
     }
 
@@ -6246,7 +6257,7 @@ async function likeVideo(videoId, btn) {
   showToast((LANG_TEXTS[currentLang]||LANG_TEXTS['ja']).likeToast);
 
   try {
-    const companyId = currentUser?.companyId || 'company_001';
+    const companyId = currentUser?.companyId || '';
     if (window._addDoc && window._collection) {
       await window._addDoc(
         window._collection(window._db, 'userLikes'), {
@@ -6293,7 +6304,7 @@ async function handleMarkWatched(videoId, taskId, btn) {
 async function markWatched(videoId, taskId) {
   const uid = currentUser?.uid || '';
   if (!uid) return;
-  const companyId = currentUser?.companyId || 'company_001';
+  const companyId = currentUser?.companyId || '';
   const storeId = currentUser?.storeId || '';
 
   try {
@@ -6366,7 +6377,7 @@ async function saveVideo(videoId, videoTitle) {
   try {
     const uid = currentUser?.uid || '';
     if (!uid) { showToast('ログインが必要です', 'error'); return; }
-    const companyId = currentUser?.companyId || 'company_001';
+    const companyId = currentUser?.companyId || '';
 
     if (window._addDoc && window._collection) {
       await window._addDoc(
@@ -6486,7 +6497,7 @@ async function loadNotifications() {
   const uid = currentUser?.uid || '';
   const role = currentUser?.role || 'staff';
   const storeId = currentUser?.storeId || '';
-  const companyId = currentUser?.companyId || 'company_001';
+  const companyId = currentUser?.companyId || '';
 
   let notifications = [];
   try {
@@ -6767,7 +6778,7 @@ async function sendVideoFeedback(videoId, videoTitle) {
           fromUserId: currentUser?.uid,
           fromUserName: currentUser?.name,
           storeId: currentUser?.storeId,
-          companyId: currentUser?.companyId || 'company_001',
+          companyId: currentUser?.companyId || '',
           read: false,
           createdAt: window._serverTimestamp()
         }
@@ -6776,7 +6787,7 @@ async function sendVideoFeedback(videoId, videoTitle) {
         window._collection(window._db, 'notifications'), {
           type: 'video_feedback',
           message: `${currentUser?.name}が「${videoTitle}」に：「${message}」`,
-          companyId: currentUser?.companyId || 'company_001',
+          companyId: currentUser?.companyId || '',
           targetRole: 'manager',
           read: false,
           createdAt: window._serverTimestamp()
@@ -7319,7 +7330,7 @@ async function submitVideo() {
 
   try {
     const isHQ = currentUser?.role === 'headquarters';
-    const companyId = currentUser?.companyId || 'company_001';
+    const companyId = currentUser?.companyId || '';
 
     const videoData = {
       title,
@@ -7332,7 +7343,7 @@ async function submitVideo() {
       youtubeId,
       thumbnailURL,
       companyId,
-      storeId: isHQ ? null : (currentUser?.storeId || 'store_001'),
+      storeId: isHQ ? null : (currentUser?.storeId || ''),
       storeName: isHQ ? '本部' : (currentUser?.storeName || ''),
       uploadedBy: currentUser?.uid || '',
       uploaderName: currentUser?.name || '',
