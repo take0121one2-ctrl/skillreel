@@ -1528,17 +1528,49 @@ function renderLP(lp) {
     ['3','進捗を確認する','誰がどの動画を見たか、店長ダッシュボードでリアルタイムに確認できる。'],
   ];
 
-  const problemHTML = problemCards.map(function(c) {
-    return '<div class="feature-card" style="position:relative;overflow:hidden;">'
+  const illust1 = '<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" style="width:72px;height:72px;margin-bottom:16px;">'
+    + '<circle cx="40" cy="28" r="16" fill="#FEE2E2"/>'
+    + '<ellipse cx="40" cy="28" rx="8" ry="8" fill="#DC2626" opacity="0.6"/>'
+    + '<rect x="22" y="44" width="36" height="24" rx="8" fill="#FEE2E2"/>'
+    + '<line x1="40" y1="52" x2="40" y2="68" stroke="#DC2626" stroke-width="2" stroke-dasharray="3,2"/>'
+    + '<path d="M30 56 Q40 48 50 56" stroke="#DC2626" stroke-width="1.5" fill="none"/>'
+    + '<circle cx="60" cy="20" r="12" fill="#FCA5A5"/>'
+    + '<text x="60" y="25" text-anchor="middle" font-size="14" fill="#DC2626" font-weight="bold">?</text>'
+    + '</svg>';
+
+  const illust2 = '<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" style="width:72px;height:72px;margin-bottom:16px;">'
+    + '<rect x="4" y="32" width="30" height="36" rx="4" fill="#FEF3C7"/>'
+    + '<rect x="4" y="20" width="30" height="14" rx="2" fill="#D97706"/>'
+    + '<text x="19" y="31" text-anchor="middle" font-size="8" fill="white" font-weight="bold">A店</text>'
+    + '<text x="19" y="58" text-anchor="middle" font-size="10" fill="#D97706">★★☆</text>'
+    + '<rect x="46" y="32" width="30" height="36" rx="4" fill="#DBEAFE"/>'
+    + '<rect x="46" y="20" width="30" height="14" rx="2" fill="#2563EB"/>'
+    + '<text x="61" y="31" text-anchor="middle" font-size="8" fill="white" font-weight="bold">B店</text>'
+    + '<text x="61" y="58" text-anchor="middle" font-size="10" fill="#2563EB">★★★</text>'
+    + '<text x="40" y="44" text-anchor="middle" font-size="14" fill="#D97706">≠</text>'
+    + '</svg>';
+
+  const illust3 = '<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" style="width:72px;height:72px;margin-bottom:16px;">'
+    + '<circle cx="28" cy="32" r="10" fill="#DBEAFE"/>'
+    + '<rect x="18" y="42" width="20" height="20" rx="4" fill="#DBEAFE"/>'
+    + '<rect x="42" y="12" width="32" height="18" rx="6" fill="#E0E7FF"/>'
+    + '<text x="58" y="25" text-anchor="middle" font-size="8" fill="#4338CA">日本語</text>'
+    + '<polygon points="42,24 36,30 48,30" fill="#E0E7FF"/>'
+    + '<rect x="42" y="40" width="32" height="18" rx="6" fill="#FEF3C7"/>'
+    + '<text x="58" y="53" text-anchor="middle" font-size="14" fill="#D97706">?</text>'
+    + '<polygon points="42,52 36,58 48,58" fill="#FEF3C7"/>'
+    + '</svg>';
+
+  const illusts = [illust1, illust2, illust3];
+
+  const problemHTML = problemCards.map(function(c, i) {
+    return '<div class="feature-card" style="position:relative;overflow:hidden;text-align:center;">'
       + '<div style="position:absolute;top:0;left:0;right:0;height:4px;background:' + c[1] + ';"></div>'
-      + '<div style="margin-top:8px;">'
-      + '<div style="width:52px;height:52px;border-radius:14px;background:' + c[1] + '15;'
-      + 'display:flex;align-items:center;justify-content:center;margin-bottom:20px;">'
-      + '<i class="fa-solid ' + c[0] + '" style="color:' + c[1] + ';font-size:22px;"></i>'
+      + '<div style="margin-top:12px;display:flex;justify-content:center;">'
+      + illusts[i]
       + '</div>'
-      + '<div style="font-size:17px;font-weight:700;color:#1F2937;margin-bottom:10px;line-height:1.4;">' + c[2] + '</div>'
+      + '<div style="font-size:16px;font-weight:700;color:#1F2937;margin-bottom:10px;line-height:1.4;">' + c[2] + '</div>'
       + '<div style="font-size:14px;color:#6B7280;line-height:1.8;">' + c[3] + '</div>'
-      + '</div>'
       + '</div>';
   }).join('');
 
@@ -1553,11 +1585,49 @@ function renderLP(lp) {
       + '</div>';
   }).join('');
 
-  const stepHTML = stepCards.map(function(c) {
-    return '<div style="background:#F8F9FC;border-radius:16px;padding:28px 24px;text-align:center;">'
-      + '<div style="width:48px;height:48px;border-radius:50%;background:#2563EB;color:white;'
+  const stepIllusts = [
+    '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" style="width:56px;height:56px;margin-bottom:12px;">'
+    + '<rect x="16" y="8" width="32" height="48" rx="6" fill="#DBEAFE"/>'
+    + '<rect x="20" y="14" width="24" height="28" rx="3" fill="#2563EB" opacity="0.7"/>'
+    + '<circle cx="32" cy="28" r="7" fill="rgba(255,255,255,0.5)"/>'
+    + '<polygon points="29,23 29,33 37,28" fill="white"/>'
+    + '<circle cx="32" cy="50" r="3" fill="#93C5FD"/>'
+    + '</svg>',
+
+    '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" style="width:56px;height:56px;margin-bottom:12px;">'
+    + '<circle cx="32" cy="32" r="8" fill="#2563EB"/>'
+    + '<text x="32" y="37" text-anchor="middle" font-size="10" fill="white">🔗</text>'
+    + '<circle cx="10" cy="20" r="7" fill="#06C755"/>'
+    + '<text x="10" y="24" text-anchor="middle" font-size="7" fill="white" font-weight="bold">L</text>'
+    + '<line x1="17" y1="24" x2="26" y2="29" stroke="#CBD5E1" stroke-width="1.5"/>'
+    + '<circle cx="54" cy="14" r="7" fill="#F59E0B"/>'
+    + '<text x="54" y="18" text-anchor="middle" font-size="7" fill="white">✉</text>'
+    + '<line x1="47" y1="19" x2="38" y2="26" stroke="#CBD5E1" stroke-width="1.5"/>'
+    + '<circle cx="54" cy="50" r="7" fill="#8B5CF6"/>'
+    + '<text x="54" y="54" text-anchor="middle" font-size="7" fill="white">📱</text>'
+    + '<line x1="47" y1="45" x2="38" y2="38" stroke="#CBD5E1" stroke-width="1.5"/>'
+    + '</svg>',
+
+    '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" style="width:56px;height:56px;margin-bottom:12px;">'
+    + '<rect x="4" y="12" width="56" height="40" rx="6" fill="#F0FDF4"/>'
+    + '<rect x="4" y="12" width="56" height="12" rx="6" fill="#16A34A" opacity="0.8"/>'
+    + '<rect x="12" y="42" width="8" height="8" rx="1" fill="#86EFAC"/>'
+    + '<rect x="24" y="36" width="8" height="14" rx="1" fill="#22C55E"/>'
+    + '<rect x="36" y="30" width="8" height="20" rx="1" fill="#16A34A"/>'
+    + '<rect x="48" y="34" width="8" height="16" rx="1" fill="#22C55E"/>'
+    + '<circle cx="50" cy="16" r="5" fill="white" opacity="0.9"/>'
+    + '<polyline points="47,16 49,18 53,14" stroke="#16A34A" stroke-width="1.5" fill="none" stroke-linecap="round"/>'
+    + '</svg>',
+  ];
+
+  const stepHTML = stepCards.map(function(c, i) {
+    return '<div style="background:#F8F9FC;border-radius:16px;padding:32px 24px;text-align:center;">'
+      + '<div style="display:flex;justify-content:center;">'
+      + stepIllusts[i]
+      + '</div>'
+      + '<div style="width:40px;height:40px;border-radius:50%;background:#2563EB;color:white;'
       + 'display:flex;align-items:center;justify-content:center;'
-      + 'font-size:20px;font-weight:700;margin:0 auto 16px;">' + c[0] + '</div>'
+      + 'font-size:18px;font-weight:800;margin:0 auto 12px;">' + c[0] + '</div>'
       + '<div style="font-size:16px;font-weight:700;margin-bottom:8px;">' + c[1] + '</div>'
       + '<div style="font-size:14px;color:#6B7280;line-height:1.7;">' + c[2] + '</div>'
       + '</div>';
@@ -1575,12 +1645,40 @@ function renderLP(lp) {
     ['fa-store','#16A34A','応援スタッフに','他の店舗に入るとき、その店の動画を見ればすぐ動ける。チェーン全体で助け合える組織へ。'],
   ];
 
-  const strengthHTML = strengthCards.map(function(c) {
+  const strengthIllusts = [
+    '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" style="width:56px;height:56px;margin-bottom:16px;">'
+    + '<rect x="4" y="12" width="56" height="36" rx="6" fill="rgba(37,99,235,0.3)"/>'
+    + '<rect x="8" y="16" width="48" height="28" rx="4" fill="rgba(37,99,235,0.5)"/>'
+    + '<circle cx="32" cy="30" r="10" fill="rgba(255,255,255,0.9)"/>'
+    + '<polygon points="28,24 28,36 40,30" fill="#2563EB"/>'
+    + '<rect x="12" y="50" width="40" height="3" rx="1.5" fill="rgba(255,255,255,0.2)"/>'
+    + '<rect x="12" y="50" width="22" height="3" rx="1.5" fill="#60A5FA"/>'
+    + '</svg>',
+
+    '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" style="width:56px;height:56px;margin-bottom:16px;">'
+    + '<circle cx="12" cy="52" r="7" fill="rgba(255,255,255,0.3)"/>'
+    + '<circle cx="32" cy="52" r="7" fill="rgba(255,255,255,0.3)"/>'
+    + '<circle cx="52" cy="52" r="7" fill="rgba(255,255,255,0.3)"/>'
+    + '<line x1="32" y1="42" x2="32" y2="16" stroke="rgba(255,255,255,0.7)" stroke-width="3" stroke-linecap="round"/>'
+    + '<polygon points="24,22 32,8 40,22" fill="rgba(255,255,255,0.9)"/>'
+    + '<rect x="20" y="6" width="24" height="8" rx="4" fill="rgba(96,165,250,0.6)"/>'
+    + '</svg>',
+
+    '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" style="width:56px;height:56px;margin-bottom:16px;">'
+    + '<ellipse cx="32" cy="28" rx="22" ry="16" fill="rgba(124,58,237,0.4)"/>'
+    + '<ellipse cx="20" cy="32" rx="12" ry="10" fill="rgba(124,58,237,0.3)"/>'
+    + '<ellipse cx="44" cy="32" rx="12" ry="10" fill="rgba(124,58,237,0.3)"/>'
+    + '<rect x="24" y="30" width="16" height="20" rx="2" fill="rgba(255,255,255,0.15)"/>'
+    + '<line x1="32" y1="34" x2="32" y2="46" stroke="rgba(255,255,255,0.8)" stroke-width="2.5" stroke-linecap="round"/>'
+    + '<polygon points="26,40 32,32 38,40" fill="rgba(255,255,255,0.9)"/>'
+    + '</svg>',
+  ];
+
+  const strengthHTML = strengthCards.map(function(c, i) {
     return '<div style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);'
-      + 'border-radius:16px;padding:32px 24px;">'
-      + '<div style="width:48px;height:48px;border-radius:12px;background:' + c[1] + '33;'
-      + 'display:flex;align-items:center;justify-content:center;margin-bottom:20px;">'
-      + '<i class="fa-solid ' + c[0] + '" style="color:' + c[1] + ';font-size:20px;"></i>'
+      + 'border-radius:16px;padding:32px 24px;text-align:center;">'
+      + '<div style="display:flex;justify-content:center;">'
+      + strengthIllusts[i]
       + '</div>'
       + '<div style="font-size:17px;font-weight:700;color:white;margin-bottom:10px;">' + c[2] + '</div>'
       + '<div style="font-size:14px;color:rgba(255,255,255,0.6);line-height:1.8;">' + c[3] + '</div>'
@@ -1634,40 +1732,80 @@ function renderLP(lp) {
 
     // ヒーロー
     + '<section style="background:linear-gradient(160deg,#0F1C2E 0%,#1a3a6e 60%,#2563EB 100%);'
-    + 'padding:120px 24px 100px;text-align:center;position:relative;overflow:hidden;">'
+    + 'padding:80px 24px;position:relative;overflow:hidden;">'
     + '<div style="position:absolute;top:0;left:0;right:0;bottom:0;'
     + 'background:radial-gradient(ellipse at 70% 30%,rgba(99,179,237,0.15) 0%,transparent 60%);'
     + 'pointer-events:none;"></div>'
-    + '<div style="max-width:840px;margin:0 auto;position:relative;">'
+    + '<div class="lp-container" style="position:relative;display:flex;align-items:center;'
+    + 'gap:48px;flex-wrap:wrap;justify-content:center;">'
+
+    // 左：テキスト
+    + '<div style="flex:1;min-width:280px;max-width:520px;">'
     + '<div style="display:inline-flex;align-items:center;gap:8px;'
     + 'background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:999px;'
-    + 'padding:6px 16px;margin-bottom:32px;">'
+    + 'padding:6px 16px;margin-bottom:28px;">'
     + '<span style="width:8px;height:8px;background:#4ADE80;border-radius:50%;display:inline-block;'
     + 'box-shadow:0 0 8px #4ADE80;"></span>'
     + '<span style="color:rgba(255,255,255,0.9);font-size:13px;font-weight:600;">飲食店向け教育プラットフォーム</span>'
     + '</div>'
-    + '<h1 class="lp-hero-title" style="font-size:52px;font-weight:800;'
-    + 'color:white;line-height:1.15;margin-bottom:24px;letter-spacing:-0.02em;">'
+    + '<h1 class="lp-hero-title" style="font-size:48px;font-weight:800;'
+    + 'color:white;line-height:1.15;margin-bottom:20px;letter-spacing:-0.02em;">'
     + '現場の知恵を、<br>組織の力に。</h1>'
-    + '<p class="lp-hero-sub" style="font-size:19px;color:rgba(255,255,255,0.75);'
-    + 'margin-bottom:16px;line-height:1.8;font-weight:400;">'
+    + '<p class="lp-hero-sub" style="font-size:17px;color:rgba(255,255,255,0.75);'
+    + 'margin-bottom:14px;line-height:1.9;">'
     + 'マニュアルに書けないコツがある。<br>'
     + 'ベテランの動きに宿る技がある。<br>'
     + 'その「リアル」を、チーム全員で共有する。</p>'
-    + '<p style="font-size:14px;color:rgba(255,255,255,0.5);margin-bottom:48px;">'
-    + '— SkillReel は飲食店のための「社内版TikTok」です</p>'
-    + '<div class="lp-hero-btns" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">'
+    + '<p style="font-size:13px;color:rgba(255,255,255,0.45);margin-bottom:40px;">'
+    + '— SkillReel は飲食店のための「社内版TikTok」</p>'
+    + '<div class="lp-hero-btns" style="display:flex;gap:12px;flex-wrap:wrap;">'
     + '<button onclick="showContactForm()" style="display:inline-flex;align-items:center;gap:8px;'
-    + 'padding:18px 36px;background:white;color:#2563EB;border:none;border-radius:12px;'
-    + 'font-size:16px;font-weight:800;cursor:pointer;'
-    + 'box-shadow:0 4px 24px rgba(255,255,255,0.3);'
-    + 'transition:transform 0.2s;" onmouseover="this.style.transform=\'scale(1.03)\'" onmouseout="this.style.transform=\'scale(1)\'">'
+    + 'padding:16px 32px;background:white;color:#2563EB;border:none;border-radius:12px;'
+    + 'font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 4px 24px rgba(255,255,255,0.25);">'
     + '<i class="fa-solid fa-rocket"></i>無料で試してみる</button>'
     + '<button onclick="document.getElementById(\'lp-message\').scrollIntoView({behavior:\'smooth\'})" '
     + 'style="display:inline-flex;align-items:center;gap:8px;'
-    + 'padding:18px 36px;background:transparent;color:white;'
+    + 'padding:16px 32px;background:transparent;color:white;'
     + 'border:2px solid rgba(255,255,255,0.4);border-radius:12px;'
-    + 'font-size:16px;font-weight:700;cursor:pointer;">もっと見る</button>'
+    + 'font-size:15px;font-weight:700;cursor:pointer;">もっと見る</button>'
+    + '</div></div>'
+
+    // 右：スマホイラスト
+    + '<div style="flex-shrink:0;width:260px;">'
+    + '<svg viewBox="0 0 260 480" xmlns="http://www.w3.org/2000/svg" style="width:100%;filter:drop-shadow(0 24px 48px rgba(0,0,0,0.4));">'
+    + '<rect x="20" y="10" width="220" height="460" rx="32" ry="32" fill="#1a1a2e" stroke="rgba(255,255,255,0.15)" stroke-width="2"/>'
+    + '<rect x="28" y="18" width="204" height="444" rx="26" ry="26" fill="#0f0f1a"/>'
+    + '<rect x="95" y="18" width="70" height="20" rx="10" fill="#1a1a2e"/>'
+    + '<rect x="28" y="38" width="204" height="360" rx="0" fill="#1e3a5f"/>'
+    + '<rect x="28" y="38" width="204" height="360" fill="url(#videoGrad)"/>'
+    + '<defs>'
+    + '<linearGradient id="videoGrad" x1="0" y1="0" x2="0" y2="1">'
+    + '<stop offset="0%" stop-color="#1e3a8a" stop-opacity="0.9"/>'
+    + '<stop offset="100%" stop-color="#0f172a" stop-opacity="1"/>'
+    + '</linearGradient>'
+    + '</defs>'
+    + '<ellipse cx="130" cy="200" rx="35" ry="35" fill="rgba(255,255,255,0.12)"/>'
+    + '<rect x="105" y="235" width="50" height="70" rx="8" fill="rgba(255,255,255,0.1)"/>'
+    + '<rect x="108" y="172" width="44" height="16" rx="4" fill="rgba(255,255,255,0.2)"/>'
+    + '<rect x="115" y="158" width="30" height="16" rx="4" fill="rgba(255,255,255,0.2)"/>'
+    + '<circle cx="130" cy="218" r="22" fill="rgba(37,99,235,0.8)"/>'
+    + '<polygon points="124,208 124,228 146,218" fill="white"/>'
+    + '<rect x="28" y="340" width="204" height="58" fill="rgba(0,0,0,0.7)"/>'
+    + '<rect x="40" y="352" width="120" height="8" rx="4" fill="rgba(255,255,255,0.7)"/>'
+    + '<rect x="40" y="368" width="80" height="6" rx="3" fill="rgba(255,255,255,0.35)"/>'
+    + '<circle cx="210" cy="290" r="18" fill="rgba(255,255,255,0.1)"/>'
+    + '<text x="210" y="296" text-anchor="middle" font-size="14" fill="#EF4444">♥</text>'
+    + '<circle cx="210" cy="330" r="18" fill="rgba(37,99,235,0.5)"/>'
+    + '<text x="210" y="336" text-anchor="middle" font-size="10" fill="white" font-weight="bold">CC</text>'
+    + '<rect x="28" y="398" width="204" height="64" rx="0" fill="#111827"/>'
+    + '<circle cx="78" cy="430" r="12" fill="rgba(255,255,255,0.08)"/>'
+    + '<text x="78" y="435" text-anchor="middle" font-size="12" fill="#6B7280">▶</text>'
+    + '<circle cx="130" cy="430" r="12" fill="rgba(37,99,235,0.4)"/>'
+    + '<text x="130" y="435" text-anchor="middle" font-size="10" fill="white">✓</text>'
+    + '<circle cx="182" cy="430" r="12" fill="rgba(255,255,255,0.08)"/>'
+    + '<text x="182" y="435" text-anchor="middle" font-size="12" fill="#6B7280">☺</text>'
+    + '<rect x="90" y="454" width="80" height="4" rx="2" fill="rgba(255,255,255,0.2)"/>'
+    + '</svg>'
     + '</div>'
     + '</div></section>'
 
