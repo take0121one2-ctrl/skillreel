@@ -6003,16 +6003,14 @@
       overlay.onclick = e => { if(e.target===overlay) overlay.remove(); };
       overlay.innerHTML = `
         <div class="modal" onclick="event.stopPropagation()">
-          <h2 class="modal-title">Anthropic APIキー設定</h2>
+          <h2 class="modal-title">AIキー設定</h2>
           <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
-            AI判定機能を使用するにはAnthropicのAPIキーが必要です。
-            キーはこのブラウザのみに保存されます。
+            GeminiのAPIキーを入力してください。キーはこのブラウザのみに保存されます。
           </p>
           <div class="form-group">
             <label class="form-label">APIキー</label>
-            <input class="form-input" id="api-key-input" type="password"
-                   placeholder="sk-ant-api03-..."
-                   value="${current}">
+            <input class="form-input" id="api-key-input" type="text"
+                   placeholder="${current ? '現在のキー: ' + current.slice(0,8) + '...' : 'APIキーを入力'}">
           </div>
           <div style="display:flex;gap:10px;margin-top:20px;">
             <button class="btn btn-ghost" style="flex:1;justify-content:center;"
