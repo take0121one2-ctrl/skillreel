@@ -1910,13 +1910,13 @@
       { key: 'dashboard', label: 'ダッシュボード', icon: 'fa-th-large'       },
       { key: 'checks',    label: 'チェック管理',   icon: 'fa-clipboard-check' },
       { key: 'results',   label: 'チェック結果確認', icon: 'fa-chart-bar'       },
-      { key: 'repairs',   label: '修繕報告',        icon: 'fa-wrench'          },
+      { key: 'repairs',   label: '現場レポート',     icon: 'fa-clipboard-list'  },
       { key: 'videos',    label: '動画管理',        icon: 'fa-video'           },
       { key: 'stores',    label: '店舗管理',        icon: 'fa-store'           },
     ];
 
     function renderHQ() {
-      const page = state.page || 'dashboard';
+      const page = state.page || 'checks';
       const u    = state.userData;
       const menu = HQ_MENU.find(m => m.key === page);
 
@@ -2465,6 +2465,14 @@
                 }
               </div>
             </div>
+            <div class="form-group">
+              <label class="form-label">関連マニュアル動画（YouTube URL）</label>
+              <input id="pck-linked-video" class="form-input" type="text"
+                     placeholder="https://youtube.com/watch?v=... （任意）">
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+                不合格時にスタッフへマニュアル動画を案内します
+              </p>
+            </div>
           </div>
           <div style="display:flex;gap:10px;margin-top:24px;">
             <button class="btn btn-ghost" style="flex:1;justify-content:center;"
@@ -2519,10 +2527,11 @@
     window.removeCpRow = removeCpRow;
 
     async function submitPckConfig() {
-      const title     = document.getElementById('pck-title')?.value?.trim();
-      const day       = parseInt(document.getElementById('pck-day')?.value, 10);
-      const file      = document.getElementById('pck-img-file')?.files[0];
-      const yearMonth = document.getElementById('pck-year-month')?.value || currentYearMonth();
+      const title          = document.getElementById('pck-title')?.value?.trim();
+      const day            = parseInt(document.getElementById('pck-day')?.value, 10);
+      const file           = document.getElementById('pck-img-file')?.files[0];
+      const yearMonth      = document.getElementById('pck-year-month')?.value || currentYearMonth();
+      const linkedVideoUrl = document.getElementById('pck-linked-video')?.value?.trim() || '';
 
       if (!title)                     { showToast('タイトルを入力してください', 'warning');      return; }
       if (!file)                      { showToast('正解画像をアップロードしてください', 'warning'); return; }
@@ -2546,7 +2555,7 @@
         const docRef = await addDoc(collection(db, COLLECTIONS.productChecks), {
           title, checkPoints, scheduledDay: day,
           targetStoreIds, companyId: u.companyId,
-          yearMonth,
+          yearMonth, linkedVideoUrl,
           correctImageUrl: '', linkedVideoIds: [],
           createdAt: serverTimestamp(),
         });
@@ -2967,11 +2976,41 @@
     }
 
     /* ============================================================
-       HQ: 修繕報告画面
+       HQ: 現場レポート画面（修繕報告 + SVフィードバック送信）
        ============================================================ */
     async function renderHQRepairs(body) {
       body.innerHTML = `
-        <div class="section-row">
+        <div class="tab-switch">
+          <button class="tab-switch-btn active" id="tab-repair-btn"
+                  onclick="switchHQRepairTab('repairs')">
+            <i class="fas fa-wrench"></i> 修繕報告
+          </button>
+          <button class="tab-switch-btn" id="tab-svfb-btn"
+                  onclick="switchHQRepairTab('svfeedback')">
+            <i class="fas fa-comment-video"></i> SVフィードバック送信
+          </button>
+        </div>
+        <div id="hq-repair-tab-content"></div>
+      `;
+      await switchHQRepairTab('repairs');
+    }
+
+    async function switchHQRepairTab(tab) {
+      document.getElementById('tab-repair-btn')?.classList.toggle('active', tab === 'repairs');
+      document.getElementById('tab-svfb-btn')?.classList.toggle('active', tab === 'svfeedback');
+      const content = document.getElementById('hq-repair-tab-content');
+      if (!content) return;
+      if (tab === 'repairs') {
+        await renderHQRepairList(content);
+      } else {
+        await renderHQSVFeedbackForm(content);
+      }
+    }
+    window.switchHQRepairTab = switchHQRepairTab;
+
+    async function renderHQRepairList(container) {
+      container.innerHTML = `
+        <div class="section-row" style="margin-top:4px;">
           <span class="section-row-title">修繕報告一覧</span>
         </div>
         <div id="repair-list">
@@ -3064,10 +3103,115 @@
         }).join('');
 
       } catch (err) {
-        console.error('renderHQRepairs error:', err);
+        console.error('renderHQRepairList error:', err);
         showToast('修繕報告の読み込みに失敗しました', 'error');
       }
     }
+
+    async function renderHQSVFeedbackForm(container) {
+      let stores = [];
+      try {
+        const snap = await getDocs(
+          query(collection(db, 'stores'), where('companyId', '==', state.userData.companyId))
+        );
+        stores = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      } catch (err) {
+        console.error('renderHQSVFeedbackForm stores error:', err);
+      }
+      container.innerHTML = `
+        <div style="max-width:520px;margin-top:8px;">
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">
+            訪問店舗へのフィードバック動画を送信します。店舗スタッフのフィードに届きます。
+          </p>
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <div class="form-group">
+              <label class="form-label">対象店舗 <span style="color:var(--danger)">*</span></label>
+              <select id="svfb-store" class="form-input">
+                <option value="">店舗を選択してください</option>
+                ${stores.map(s => `<option value="${s.id}">${s.storeName || s.name || s.id}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">訪問動画（YouTube URL）<span style="color:var(--danger)">*</span></label>
+              <input id="svfb-youtube-url" class="form-input" type="text"
+                     placeholder="https://youtube.com/watch?v=...">
+            </div>
+            <div class="form-group">
+              <label class="form-label">フィードバックコメント</label>
+              <textarea id="svfb-comment" class="form-input" rows="4"
+                        placeholder="今回の訪問で気づいた点、改善点など…"></textarea>
+            </div>
+            <button class="btn btn-primary" onclick="submitSVFeedback()"
+                    style="width:100%;justify-content:center;padding:14px;font-size:15px;">
+              <i class="fas fa-paper-plane"></i> フィードバックを送信
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    async function submitSVFeedback() {
+      const storeId    = document.getElementById('svfb-store')?.value;
+      const youtubeUrl = document.getElementById('svfb-youtube-url')?.value?.trim();
+      const comment    = document.getElementById('svfb-comment')?.value?.trim() || '';
+
+      if (!storeId)    { showToast('対象店舗を選択してください', 'warning'); return; }
+      if (!youtubeUrl) { showToast('YouTube URLを入力してください', 'warning'); return; }
+      const videoId = extractYoutubeId(youtubeUrl);
+      if (!videoId)    { showToast('有効なYouTube URLを入力してください', 'warning'); return; }
+
+      const btn = document.querySelector('button[onclick="submitSVFeedback()"]');
+      if (btn) { btn.disabled = true; btn.textContent = '送信中...'; }
+
+      try {
+        const u = state.userData;
+        const storesSnap = await getDocs(
+          query(collection(db, 'stores'), where('companyId', '==', u.companyId))
+        );
+        const storeData = storesSnap.docs.find(d => d.id === storeId)?.data() || {};
+        const storeName = storeData.storeName || storeData.name || storeId;
+
+        const videoRef = await addDoc(collection(db, 'videos'), {
+          title:        `${storeName}へのSVフィードバック`,
+          description:  comment,
+          youtubeUrl,
+          videoId,
+          category:     'feedback',
+          scope:        'store',
+          storeId,
+          companyId:    u.companyId,
+          status:       'published',
+          isOfficial:   true,
+          uploaderName: u.name || u.email || '',
+          uploaderUid:  u.uid,
+          likeCount:    0,
+          createdAt:    serverTimestamp(),
+        });
+
+        await addDoc(collection(db, 'notifications'), {
+          type:         'sv_feedback',
+          companyId:    u.companyId,
+          targetStoreId: storeId,
+          message:      `SVからフィードバック動画が届きました`,
+          fromUid:      u.uid,
+          fromName:     u.name || u.email || '',
+          videoId:      videoRef.id,
+          createdAt:    serverTimestamp(),
+          read:         false,
+        });
+
+        showToast(`${storeName}にフィードバックを送信しました`, 'success');
+        document.getElementById('svfb-youtube-url').value = '';
+        document.getElementById('svfb-comment').value = '';
+        document.getElementById('svfb-store').value = '';
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> フィードバックを送信'; }
+      } catch (err) {
+        console.error('submitSVFeedback error:', err);
+        showToast('送信に失敗しました', 'error');
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> フィードバックを送信'; }
+      }
+    }
+    window.submitSVFeedback = submitSVFeedback;
 
     /* ステータス更新 */
     async function updateRepairStatus(reportId, newStatus) {
@@ -3265,6 +3409,34 @@
       if (!el) return;
       const u = state.userData;
       let videos = _feedState.videos;
+
+      // SV feedback section — shown at top when on 'all' tab and no category filter
+      let feedbackSection = '';
+      if (_feedState.scope === 'all' && !_feedState.category) {
+        const feedbackVideos = _feedState.videos.filter(v =>
+          v.category === 'feedback' && v.storeId === u.storeId
+        );
+        if (feedbackVideos.length > 0) {
+          feedbackSection = `
+            <div style="margin-bottom:20px;padding:14px 16px;
+                        background:linear-gradient(135deg,#FFF7ED,#FEF3C7);
+                        border:1.5px solid #FCD34D;border-radius:var(--radius-lg);">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                <span style="background:#F59E0B;color:white;border-radius:var(--radius-sm);
+                             padding:3px 10px;font-size:12px;font-weight:700;">
+                  <i class="fas fa-bell"></i> 要確認
+                </span>
+                <span style="font-size:14px;font-weight:700;color:#92400E;">
+                  SVからフィードバック動画が届いています
+                </span>
+              </div>
+              <div class="video-grid" style="margin:0;">
+                ${feedbackVideos.map(v => videoCardHTML(v)).join('')}
+              </div>
+            </div>`;
+        }
+      }
+
       if (_feedState.scope === 'all') {
         videos = videos.filter(v => v.scope === 'all');
       } else {
@@ -3276,7 +3448,7 @@
       if (_feedState.category) {
         videos = videos.filter(v => v.category === _feedState.category);
       }
-      if (videos.length === 0) {
+      if (feedbackSection === '' && videos.length === 0) {
         el.innerHTML = `
           <div class="empty-state">
             <div class="empty-icon"><i class="fas fa-video"></i></div>
@@ -3285,7 +3457,10 @@
           </div>`;
         return;
       }
-      el.innerHTML = `<div class="video-grid">${videos.map(v => videoCardHTML(v)).join('')}</div>`;
+      const mainGrid = videos.length > 0
+        ? `<div class="video-grid">${videos.map(v => videoCardHTML(v)).join('')}</div>`
+        : '';
+      el.innerHTML = feedbackSection + mainGrid;
     }
 
     function videoCardHTML(v) {
@@ -4202,6 +4377,7 @@
               <i class="fas ${d.pass ? 'fa-check' : 'fa-times'}"></i>
               <span>${d.point}</span>
             </div>`).join('');
+          const check = _pExec.check;
           resultEl.innerHTML = `
             <div class="ai-result-block ${pass ? 'pass' : 'fail'}">
               <div class="ai-verdict">
@@ -4211,7 +4387,27 @@
               <div class="ai-score">スコア: <strong>${judgment.score ?? '-'}</strong> / 100</div>
               <div class="ai-comment">${judgment.comment || ''}</div>
               ${detailRows ? `<div class="ai-details">${detailRows}</div>` : ''}
-            </div>`;
+            </div>
+            ${!pass && check.linkedVideoUrl ? `
+              <div style="margin-top:16px;padding:14px 16px;
+                          background:var(--warning-light);
+                          border:1px solid #FDE68A;
+                          border-radius:var(--radius-md);">
+                <div style="font-size:13px;font-weight:700;
+                            color:var(--warning);margin-bottom:8px;">
+                  <i class="fas fa-video"></i> 関連マニュアルを確認してください
+                </div>
+                <button onclick="openVideoModal({
+                  title:'マニュアル動画',
+                  youtubeUrl:'${check.linkedVideoUrl}',
+                  isOfficial:true,
+                  uploaderName:'本部'
+                })" class="btn btn-sm"
+                style="background:var(--warning);color:white;border:none;">
+                  <i class="fas fa-play"></i> マニュアルを見る
+                </button>
+              </div>` : ''}
+            `;
         }
         const submitBtn = document.getElementById('pcheck-submit-btn');
         if (submitBtn) submitBtn.disabled = false;
@@ -4682,13 +4878,15 @@
     /* ============================================================
        Staff: チェック
        ============================================================ */
-    function renderStaffCheck(body) {
+    async function renderStaffCheck(body) {
+      const ym = currentYearMonth();
       body.innerHTML = `
         <div style="padding:20px;">
-          <h2 style="font-size:17px;font-weight:700;margin-bottom:4px;">チェック</h2>
-          <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
-            今月のチェック作業
+          <h2 style="font-size:17px;font-weight:700;margin-bottom:4px;">今月のやること</h2>
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">
+            ${ymToLabel(ym)}のチェック作業
           </p>
+          <div id="staff-check-alert"></div>
           <div class="tab-switch" style="margin-bottom:20px;">
             <button class="tab-switch-btn active" id="staff-check-tab-product"
                     onclick="switchStaffCheckTab('product')">
@@ -4702,6 +4900,53 @@
           <div id="staff-check-content"></div>
         </div>
       `;
+      // Check for pending items and show alert banner
+      try {
+        const u = state.userData;
+        const snap = await getDocs(
+          query(collection(db, COLLECTIONS.productChecks), where('companyId', '==', u.companyId))
+        );
+        const checks = snap.docs.filter(d => {
+          const data = d.data();
+          if (!(data.targetStoreIds || []).includes(u.storeId)) return false;
+          const checkYm = data.yearMonth;
+          return checkYm ? checkYm === ym : true;
+        });
+        if (checks.length > 0) {
+          const resSnap = await getDocs(
+            query(collection(db, COLLECTIONS.productCheckResults), where('companyId', '==', u.companyId))
+          );
+          const submittedIds = new Set(
+            resSnap.docs
+              .filter(d => {
+                const r = d.data();
+                if (r.storeId !== u.storeId) return false;
+                const ts = r.submittedAt?.toDate
+                  ? r.submittedAt.toDate()
+                  : new Date((r.submittedAt?.seconds || 0) * 1000);
+                const rYm = `${ts.getFullYear()}-${String(ts.getMonth()+1).padStart(2,'0')}`;
+                return rYm === ym;
+              })
+              .map(d => d.data().checkId)
+          );
+          const pendingCount = checks.filter(d => !submittedIds.has(d.id)).length;
+          const alertEl = document.getElementById('staff-check-alert');
+          if (alertEl && pendingCount > 0) {
+            alertEl.innerHTML = `
+              <div style="background:var(--danger-light);border:1px solid #FCA5A5;
+                          border-radius:var(--radius-md);padding:12px 16px;
+                          margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+                <i class="fas fa-exclamation-circle"
+                   style="color:var(--danger);font-size:16px;flex-shrink:0;"></i>
+                <span style="font-size:13px;font-weight:700;color:var(--danger);">
+                  未実施のチェックが${pendingCount}件あります。今月中に実施してください。
+                </span>
+              </div>`;
+          }
+        }
+      } catch (err) {
+        console.error('renderStaffCheck alert error:', err);
+      }
       renderProductCheckList(document.getElementById('staff-check-content'), 'staff');
     }
 
@@ -4924,7 +5169,7 @@
     ];
 
     function renderManager() {
-      const page = state.page || 'dashboard';
+      const page = state.page || 'product-check';
       const u    = state.userData;
       const menu = MGR_MENU.find(m => m.key === page);
 
@@ -4989,51 +5234,6 @@
         case 'staff':         renderMgrStaff(body);                break;
         default:              body.innerHTML = placeholderHTML(MGR_MENU, page); break;
       }
-    }
-
-    /* Manager Dashboard */
-    function mgrDashboardHTML() {
-      const now      = new Date();
-      const monthStr = `${now.getFullYear()}年${now.getMonth() + 1}月`;
-      return `
-        <p style="font-size:13px;color:var(--text-muted);margin-bottom:18px;">${monthStr}の状況</p>
-        <div class="status-grid mb-24">
-          <div class="status-card">
-            <div class="status-icon warning"><i class="fas fa-camera"></i></div>
-            <div class="status-body">
-              <h4>商品チェック</h4>
-              <p>今月の実施状況</p>
-            </div>
-            <span class="status-badge badge-warning">未確認</span>
-          </div>
-          <div class="status-card">
-            <div class="status-icon warning"><i class="fas fa-broom"></i></div>
-            <div class="status-body">
-              <h4>清掃チェック</h4>
-              <p>今月の実施状況</p>
-            </div>
-            <span class="status-badge badge-warning">未確認</span>
-          </div>
-          <div class="status-card">
-            <div class="status-icon info"><i class="fas fa-comment-dots"></i></div>
-            <div class="status-body">
-              <h4>未読の修繕報告返信</h4>
-              <p>本部からの返信</p>
-            </div>
-            <span style="display:inline-flex;width:26px;height:26px;background:var(--danger);
-                         color:#fff;border-radius:50%;font-size:12px;font-weight:700;
-                         align-items:center;justify-content:center;">0</span>
-          </div>
-        </div>
-        <div style="background:var(--surface);border:1px solid var(--border);
-                    border-radius:var(--radius-lg);padding:36px;text-align:center;">
-          <i class="fas fa-info-circle"
-             style="font-size:32px;color:var(--border);display:block;margin-bottom:12px;"></i>
-          <p style="font-size:14px;color:var(--text-muted);">
-            チェックを実施するとここに詳細な状況が表示されます
-          </p>
-        </div>
-      `;
     }
 
     /* Manager Staff List */
@@ -5124,7 +5324,7 @@
        ============================================================ */
     const STAFF_TABS = [
       { key: 'feed',   label: 'フィード', icon: 'fa-play'   },
-      { key: 'check',  label: 'チェック', icon: 'fa-camera' },
+      { key: 'check',  label: 'やること', icon: 'fa-list-check' },
       { key: 'report', label: '報告',      icon: 'fa-wrench' },
       { key: 'mypage', label: 'マイページ', icon: 'fa-user'  },
     ];
