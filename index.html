@@ -1345,6 +1345,10 @@
        Returns { result, score, comment, details } or throws on error.
        ============================================================ */
     async function judgeProductCheck(correctImageUrl, submittedImageUrl, checkPoints) {
+      const apiKey = localStorage.getItem('sr_anthropic_key') || ANTHROPIC_API_KEY;
+      if (!apiKey) {
+        throw new Error('APIキーが設定されていません。サイドバーのAPIキー設定から登録してください。');
+      }
       // Convert an image URL to { base64, mediaType }
       async function toBase64(url) {
         const res  = await fetch(url);
@@ -1369,7 +1373,7 @@
         method: 'POST',
         headers: {
           'Content-Type':      'application/json',
-          'x-api-key':         localStorage.getItem('sr_anthropic_key') || ANTHROPIC_API_KEY,
+          'x-api-key':         apiKey,
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
@@ -4393,7 +4397,7 @@
         );
         _pExec.judgment = judgment;
         if (resultEl) {
-          const pass = judgment.pass;
+          const pass = judgment.result === 'pass';
           const detailRows = (judgment.details || []).map((d, i) => `
             <div class="ai-detail-item" style="
               display:flex;align-items:flex-start;gap:8px;
@@ -4439,8 +4443,16 @@
         showToast('AI判定が完了しました', 'success');
       } catch (err) {
         console.error('runPCheckAI error:', err);
-        showToast('AI判定に失敗しました', 'error');
-        if (resultEl) resultEl.innerHTML = '';
+        showToast('AI判定に失敗しました。そのまま提出できます。', 'warning');
+        if (resultEl) resultEl.innerHTML = `
+          <div style="background:var(--warning-light);border:1px solid #FDE68A;
+                      border-radius:var(--radius-md);padding:12px 16px;
+                      font-size:13px;color:var(--warning);">
+            <i class="fas fa-exclamation-triangle"></i>
+            AI判定に失敗しました。写真はアップロード済みなので提出できます。
+          </div>`;
+        const submitBtn = document.getElementById('pcheck-submit-btn');
+        if (submitBtn) submitBtn.disabled = false;
       }
     }
     window.runPCheckAI = runPCheckAI;
