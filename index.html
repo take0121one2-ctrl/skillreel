@@ -4299,10 +4299,8 @@
         <div id="pcheck-ai-result"></div>
 
         <div style="margin-top:20px;display:flex;gap:12px;flex-wrap:wrap;">
-          <button class="btn btn-secondary" id="pcheck-ai-btn"
-                  onclick="runPCheckAI('${ctx}')" disabled>
-            <i class="fas fa-robot"></i> AI判定を実行
-          </button>
+          <!-- AI判定は画像アップロード時に自動実行 -->
+          <span id="pcheck-ai-btn" style="display:none;"></span>
           <button class="btn btn-primary" id="pcheck-submit-btn"
                   onclick="submitPCheckResult('${ctx}')" disabled>
             <i class="fas fa-paper-plane"></i> 提出する
@@ -4331,11 +4329,15 @@
             <img src="${url}" alt="提出画像"
                  style="width:100%;max-height:260px;object-fit:cover;border-radius:var(--radius-md);">`;
         }
-        const aiBtn = document.getElementById('pcheck-ai-btn');
-        if (aiBtn) aiBtn.disabled = !_pExec.check?.correctImageUrl;
-        const submitBtn = document.getElementById('pcheck-submit-btn');
-        if (submitBtn) submitBtn.disabled = false;
-        showToast('写真をアップロードしました', 'success');
+        showToast('写真をアップロードしました。AI判定中...', 'info');
+        // 正解画像がある場合は自動でAI判定を実行
+        if (_pExec.check?.correctImageUrl) {
+          await runPCheckAI(ctx);
+        } else {
+          // 正解画像がない場合は提出ボタンだけ有効化
+          const submitBtn = document.getElementById('pcheck-submit-btn');
+          if (submitBtn) submitBtn.disabled = false;
+        }
       } catch (err) {
         console.error('onPCheckImageSelected error:', err);
         showToast('写真のアップロードに失敗しました', 'error');
