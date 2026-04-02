@@ -1200,6 +1200,9 @@
       loading:     true,   // True during initial auth check
     };
 
+    // Setup mode state — set before Google login to create HQ user
+    let _setupPending = null;
+
     /* ============================================================
        Utility: Toast Notifications
        ============================================================ */
@@ -1425,6 +1428,13 @@
           return { ...snap.data(), uid: firebaseUser.uid };
         }
 
+        // Setup mode — create headquarters user
+        if (_setupPending) {
+          const d = _setupPending;
+          _setupPending = null;
+          return await processHQSetup(firebaseUser, d);
+        }
+
         // New user — check for invite token
         const token = getInviteParam();
         if (token) {
@@ -1547,6 +1557,15 @@
         <!-- ── Footer ── -->
         <footer class="lp-footer">
           <p>&copy; 2024 SkillReel. All rights reserved.</p>
+          ${!localStorage.getItem('setupDone') ? `
+            <p style="margin-top:14px;">
+              <button onclick="openSetupPrompt()"
+                      style="background:none;border:none;
+                             color:rgba(255,255,255,0.18);font-size:10px;
+                             cursor:pointer;padding:0;font-family:inherit;">
+                管理者セットアップ
+              </button>
+            </p>` : ''}
         </footer>
 
         <!-- ── Login Modal ── -->
@@ -2796,7 +2815,40 @@
        ============================================================ */
     async function renderStaffFeed(body) {
       _feedState = { scope: 'all', category: '', videos: [], likedIds: new Set() };
-      body.innerHTML = buildFeedShell();
+      const catButtons = VIDEO_CATEGORIES.map(c =>
+        `<button class="video-cat-btn" data-cat="${c.id}"
+                 onclick="filterFeedCategory('${c.id}')"
+                 style="--cat-color:${c.color}">
+           <i class="fas ${c.icon}"></i> ${c.label}
+         </button>`
+      ).join('');
+      body.innerHTML = `
+        <div style="padding:16px 16px 80px;">
+          <h2 style="font-size:17px;font-weight:700;margin-bottom:2px;">フィード</h2>
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+            最新の動画・お知らせ
+          </p>
+          <div class="video-scope-tabs">
+            <button class="video-scope-btn active" id="feed-scope-all"
+                    onclick="switchFeedScope('all')">全店共通</button>
+            <button class="video-scope-btn" id="feed-scope-store"
+                    onclick="switchFeedScope('store')">店舗内</button>
+          </div>
+          <div class="video-cat-filter">
+            <button class="video-cat-btn active" data-cat=""
+                    onclick="filterFeedCategory('')">
+              <i class="fas fa-th"></i> すべて
+            </button>
+            ${catButtons}
+          </div>
+          <div id="video-feed-list">
+            <div style="text-align:center;padding:40px;color:var(--text-muted);">
+              <div class="spinner"
+                   style="width:28px;height:28px;margin:0 auto 10px;"></div>
+              <p style="font-size:14px;">読み込み中...</p>
+            </div>
+          </div>
+        </div>`;
       await loadFeedVideos();
     }
     window.renderStaffFeed = renderStaffFeed;
@@ -3552,7 +3604,7 @@
           query(
             collection(db, COLLECTIONS.productChecks),
             where('companyId', '==', u.companyId),
-            where('storeIds', 'array-contains', u.storeId)
+            where('targetStoreIds', 'array-contains', u.storeId)
           )
         );
         const el = document.getElementById('pcheck-list');
@@ -3848,7 +3900,7 @@
           query(
             collection(db, COLLECTIONS.cleaningChecks),
             where('companyId', '==', u.companyId),
-            where('storeIds', 'array-contains', u.storeId)
+            where('targetStoreIds', 'array-contains', u.storeId)
           )
         );
         const el = document.getElementById('ccheck-list');
@@ -4799,6 +4851,129 @@
     }
 
     /* ============================================================
+       Admin Setup (初回セットアップ)
+       ============================================================ */
+    async function processHQSetup(firebaseUser, setupData) {
+      try {
+        const companyId = `co_${Date.now().toString(36)}`;
+        const userData = {
+          uid:         firebaseUser.uid,
+          email:       firebaseUser.email,
+          name:        setupData.name || firebaseUser.displayName || '',
+          role:        'headquarters',
+          companyId,
+          companyName: setupData.companyName,
+          photoURL:    firebaseUser.photoURL || '',
+          createdAt:   serverTimestamp(),
+          lastLoginAt: serverTimestamp(),
+        };
+        await setDoc(doc(db, 'users', firebaseUser.uid), userData);
+        // Create first store
+        const storeRef = await addDoc(collection(db, 'stores'), {
+          storeName: `${setupData.companyName}本店`,
+          companyId,
+          address:   '',
+          createdAt: serverTimestamp(),
+        });
+        await updateDoc(storeRef, { storeId: storeRef.id });
+        localStorage.setItem('setupDone', '1');
+        showToast('セットアップが完了しました', 'success');
+        return { ...userData };
+      } catch (err) {
+        console.error('processHQSetup error:', err);
+        showToast('セットアップに失敗しました', 'error');
+        return null;
+      }
+    }
+
+    function openSetupPrompt() {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.id = 'setup-modal';
+      overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+      overlay.innerHTML = `
+        <div class="modal" onclick="event.stopPropagation()">
+          <h2 class="modal-title">管理者セットアップ</h2>
+          <div id="setup-modal-body">
+            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;">
+              初回のみ使用できます。パスワードを入力してください。
+            </p>
+            <div class="form-group">
+              <label class="form-label">パスワード</label>
+              <input class="form-input" id="setup-password" type="password"
+                     placeholder="セットアップパスワード"
+                     onkeydown="if(event.key==='Enter')setupPasswordCheck()">
+            </div>
+            <div style="display:flex;gap:10px;margin-top:16px;">
+              <button class="btn btn-ghost" style="flex:1;justify-content:center;"
+                      onclick="document.getElementById('setup-modal').remove()">
+                キャンセル
+              </button>
+              <button class="btn btn-primary" style="flex:1;justify-content:center;"
+                      onclick="setupPasswordCheck()">
+                確認
+              </button>
+            </div>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      setTimeout(() => document.getElementById('setup-password')?.focus(), 80);
+    }
+    window.openSetupPrompt = openSetupPrompt;
+
+    function setupPasswordCheck() {
+      const pw = document.getElementById('setup-password')?.value;
+      if (pw !== 'skillreel-admin-setup') {
+        showToast('パスワードが違います', 'error');
+        return;
+      }
+      const body = document.getElementById('setup-modal-body');
+      if (!body) return;
+      body.innerHTML = `
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+          本部アカウントを作成します。
+        </p>
+        <div class="form-group">
+          <label class="form-label">
+            会社名 <span style="color:var(--danger)">*</span>
+          </label>
+          <input class="form-input" id="setup-company" type="text"
+                 placeholder="例：〇〇フード株式会社">
+        </div>
+        <div class="form-group">
+          <label class="form-label">
+            お名前 <span style="color:var(--danger)">*</span>
+          </label>
+          <input class="form-input" id="setup-name" type="text"
+                 placeholder="例：山田 太郎">
+        </div>
+        <div style="display:flex;gap:10px;margin-top:18px;">
+          <button class="btn btn-ghost" style="flex:1;justify-content:center;"
+                  onclick="document.getElementById('setup-modal').remove()">
+            キャンセル
+          </button>
+          <button class="btn btn-google" style="flex:2;justify-content:center;gap:8px;"
+                  onclick="startSetupLogin()">
+            <i class="fab fa-google" style="font-size:16px;color:#4285F4;"></i>
+            Googleでログインしてセットアップ
+          </button>
+        </div>`;
+      setTimeout(() => document.getElementById('setup-company')?.focus(), 80);
+    }
+    window.setupPasswordCheck = setupPasswordCheck;
+
+    async function startSetupLogin() {
+      const companyName = document.getElementById('setup-company')?.value.trim();
+      const name        = document.getElementById('setup-name')?.value.trim();
+      if (!companyName) { showToast('会社名を入力してください', 'error'); return; }
+      if (!name)        { showToast('お名前を入力してください', 'error'); return; }
+      _setupPending = { companyName, name };
+      document.getElementById('setup-modal')?.remove();
+      await handleGoogleLogin();
+    }
+    window.startSetupLogin = startSetupLogin;
+
+    /* ============================================================
        Notifications
        ============================================================ */
     async function loadNotificationBadge() {
@@ -5149,7 +5324,7 @@
           getDocs(query(
             collection(db, COLLECTIONS.productChecks),
             where('companyId', '==', u.companyId),
-            where('storeIds', 'array-contains', u.storeId)
+            where('targetStoreIds', 'array-contains', u.storeId)
           )),
           getDocs(query(
             collection(db, COLLECTIONS.productCheckResults),
@@ -5160,7 +5335,7 @@
           getDocs(query(
             collection(db, COLLECTIONS.cleaningChecks),
             where('companyId', '==', u.companyId),
-            where('storeIds', 'array-contains', u.storeId)
+            where('targetStoreIds', 'array-contains', u.storeId)
           )),
           getDocs(query(
             collection(db, COLLECTIONS.cleaningCheckResults),
