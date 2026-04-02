@@ -1356,15 +1356,21 @@
           img.crossOrigin = 'anonymous';
           img.onload = () => {
             const canvas = document.createElement('canvas');
-            canvas.width = img.naturalWidth;
-            canvas.height = img.naturalHeight;
+            // 最大800pxにリサイズ
+            const maxSize = 800;
+            let w = img.naturalWidth;
+            let h = img.naturalHeight;
+            if (w > maxSize || h > maxSize) {
+              if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+              else       { w = Math.round(w * maxSize / h); h = maxSize; }
+            }
+            canvas.width  = w;
+            canvas.height = h;
             const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0);
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-            resolve({
-              base64: dataUrl.split(',')[1],
-              mediaType: 'image/jpeg'
-            });
+            ctx.drawImage(img, 0, 0, w, h);
+            // 品質0.7に下げてサイズ削減
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+            resolve({ base64: dataUrl.split(',')[1], mediaType: 'image/jpeg' });
           };
           img.onerror = () => reject(new Error('画像の読み込みに失敗しました: ' + url));
           img.src = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
