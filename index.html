@@ -4212,11 +4212,18 @@
                      <i class="fas fa-camera"></i> 実施
                    </button>`
                 : done
-                  ? `<button class="btn btn-outline btn-sm"
-                             style="color:var(--success);border-color:var(--success);"
-                             onclick="openCheckResultDetail('${d.id}','${ctx}')">
-                       <i class="fas fa-chart-bar"></i> 結果を見る
-                     </button>`
+                  ? `<div style="display:flex;gap:6px;flex-wrap:wrap;">
+                       <button class="btn btn-outline btn-sm"
+                               style="color:var(--success);border-color:var(--success);"
+                               onclick="openCheckResultDetail('${d.id}','${ctx}')">
+                         <i class="fas fa-chart-bar"></i> 結果を見る
+                       </button>
+                       <button class="btn btn-outline btn-sm"
+                               style="color:var(--primary);border-color:var(--primary);"
+                               onclick="retryProductCheck('${d.id}','${ctx}')">
+                         <i class="fas fa-redo"></i> 再提出
+                       </button>
+                     </div>`
                   : ''
               }
             </div>`;
@@ -4562,6 +4569,14 @@
                   </div>`;
               }).join('')}
             </div>` : ''}
+
+          <div style="margin-top:20px;">
+            <button class="btn btn-primary" style="width:100%;justify-content:center;"
+                    onclick="document.getElementById('check-result-modal').remove();
+                             retryProductCheck('${checkId}','${ctx}')">
+              <i class="fas fa-redo"></i> 再提出する
+            </button>
+          </div>
         `;
       } catch (err) {
         console.error('openCheckResultDetail error:', err);
@@ -4570,6 +4585,36 @@
       }
     }
     window.openCheckResultDetail = openCheckResultDetail;
+
+    async function retryProductCheck(checkId, ctx) {
+      const confirmed = window.confirm(
+        '再提出しますか？\n新しい写真を撮影してAI判定を行い、最新の結果として保存されます。'
+      );
+      if (!confirmed) return;
+
+      const bodyEl = ctx === 'staff'
+        ? document.getElementById('staff-body')
+        : document.getElementById('page-body');
+      if (!bodyEl) return;
+
+      bodyEl.innerHTML = `
+        <div style="text-align:center;padding:60px;color:var(--text-muted);">
+          <div class="spinner" style="width:28px;height:28px;margin:0 auto 12px;"></div>
+          <p style="font-size:14px;">読み込み中...</p>
+        </div>`;
+
+      try {
+        const snap = await getDoc(doc(db, COLLECTIONS.productChecks, checkId));
+        if (!snap.exists()) { showToast('チェックが見つかりません', 'error'); return; }
+        _pExec = { check: { id: snap.id, ...snap.data() }, imageUrl: '', judgment: null };
+        renderProductCheckDetail(bodyEl, ctx, _pExec.check);
+        showToast('再提出モードです。新しい写真を撮影してください', 'info');
+      } catch (err) {
+        console.error('retryProductCheck error:', err);
+        showToast('読み込みに失敗しました', 'error');
+      }
+    }
+    window.retryProductCheck = retryProductCheck;
 
     async function submitPCheckResult(ctx) {
       if (!_pExec.imageUrl) {
