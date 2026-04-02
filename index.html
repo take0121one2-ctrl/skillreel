@@ -180,13 +180,13 @@
       position: fixed; top: 0; left: 0; right: 0; z-index: 100;
       height: 64px; padding: 0 40px;
       display: flex; align-items: center; justify-content: space-between;
-      background: rgba(255,255,255,0.9);
+      background: rgba(15,23,42,0.85);
       backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
     }
     .lp-logo {
       display: flex; align-items: center; gap: 10px;
-      font-size: 20px; font-weight: 700; color: var(--primary);
+      font-size: 20px; font-weight: 700; color: #F1F5F9;
     }
     .logo-icon {
       width: 34px; height: 34px;
@@ -198,36 +198,118 @@
       min-height: 100vh;
       display: flex; align-items: center; justify-content: center;
       padding: 80px 24px 60px;
-      background: linear-gradient(145deg, #EEF2FF 0%, #F8F9FC 55%, #DBEAFE 100%);
-      text-align: center;
+      background: linear-gradient(145deg, #0F172A 0%, #1E2A3A 55%, #1D3461 100%);
     }
-    .hero-content { max-width: 680px; }
+    .hero-inner {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 48px; align-items: center;
+      max-width: 1100px; width: 100%;
+    }
+    .hero-content { max-width: 540px; }
     .hero-badge {
       display: inline-flex; align-items: center; gap: 6px;
-      padding: 5px 14px; background: var(--primary-light);
-      color: var(--primary); border-radius: 100px;
+      padding: 5px 14px; background: rgba(37,99,235,0.25);
+      color: #93C5FD; border-radius: 100px;
       font-size: 12px; font-weight: 600; margin-bottom: 24px;
+      border: 1px solid rgba(147,197,253,0.3);
     }
     .hero-title {
-      font-size: clamp(32px, 5vw, 52px);
-      font-weight: 700; line-height: 1.2;
-      color: var(--text-primary); margin-bottom: 20px;
+      font-size: clamp(28px, 3.8vw, 48px);
+      font-weight: 700; line-height: 1.25;
+      color: #F1F5F9; margin-bottom: 20px;
     }
-    .hero-title span { color: var(--primary); }
+    .hero-title span { color: #60A5FA; }
     .hero-desc {
-      font-size: 17px; line-height: 1.75;
-      color: var(--text-secondary); margin-bottom: 40px;
+      font-size: 16px; line-height: 1.8;
+      color: #94A3B8; margin-bottom: 40px;
     }
-    .hero-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+    .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; }
+    .hero-mock {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px; padding: 20px;
+      backdrop-filter: blur(8px);
+    }
+    @media (max-width: 860px) {
+      .hero-inner { grid-template-columns: 1fr; }
+      .hero-mock { display: none; }
+    }
 
-    .lp-section { padding: 80px 24px; }
-    .lp-section.alt { background: var(--surface); }
+    /* Stats section */
+    .lp-stats {
+      background: #0F172A; padding: 56px 24px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 32px; max-width: 800px; margin: 0 auto; text-align: center;
+    }
+    .stat-number {
+      font-size: 48px; font-weight: 800; color: #60A5FA;
+      line-height: 1; margin-bottom: 8px;
+    }
+    .stat-label { font-size: 14px; color: #94A3B8; }
+
+    /* Pain section */
+    .lp-pain {
+      background: #111827; padding: 80px 24px;
+    }
+    .pain-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px; max-width: 900px; margin: 0 auto;
+    }
+    .pain-card {
+      background: rgba(239,68,68,0.07); border: 1px solid rgba(239,68,68,0.2);
+      border-radius: 14px; padding: 28px;
+    }
+    .pain-icon {
+      width: 44px; height: 44px; border-radius: 10px;
+      background: rgba(239,68,68,0.15); color: #F87171;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; margin-bottom: 16px;
+    }
+    .pain-card h3 { font-size: 15px; font-weight: 600; color: #F1F5F9; margin-bottom: 8px; }
+    .pain-card p  { font-size: 13px; color: #94A3B8; line-height: 1.7; }
+
+    /* Steps section */
+    .lp-steps { background: #0F172A; padding: 80px 24px; }
+    .steps-row {
+      display: flex; align-items: flex-start; gap: 0;
+      max-width: 860px; margin: 0 auto; flex-wrap: wrap; justify-content: center;
+    }
+    .step-item {
+      flex: 1; min-width: 200px; text-align: center; padding: 0 16px; position: relative;
+    }
+    .step-num {
+      width: 52px; height: 52px; border-radius: 50%;
+      background: linear-gradient(135deg, #2563EB, #60A5FA);
+      color: #fff; font-size: 20px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 16px;
+    }
+    .step-item h3 { font-size: 15px; font-weight: 600; color: #F1F5F9; margin-bottom: 8px; }
+    .step-item p  { font-size: 13px; color: #94A3B8; line-height: 1.65; }
+    .step-arrow {
+      align-self: center; font-size: 22px; color: #334155;
+      flex-shrink: 0; padding: 0 4px; margin-top: -24px;
+    }
+    @media (max-width: 600px) { .step-arrow { display: none; } }
+
+    /* CTA section */
+    .lp-cta {
+      background: linear-gradient(135deg, #1E40AF, #2563EB);
+      padding: 80px 24px; text-align: center;
+    }
+    .lp-cta h2 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 14px; }
+    .lp-cta p  { font-size: 15px; color: #BFDBFE; margin-bottom: 32px; }
+
+    .lp-section { padding: 80px 24px; background: #111827; }
+    .lp-section.alt { background: #0F172A; }
     .section-header { text-align: center; margin-bottom: 48px; }
     .section-header h2 {
-      font-size: 30px; font-weight: 700;
-      color: var(--text-primary); margin-bottom: 10px;
+      font-size: 28px; font-weight: 700; color: #F1F5F9; margin-bottom: 10px;
     }
-    .section-header p { font-size: 15px; color: var(--text-secondary); }
+    .section-header p { font-size: 15px; color: #94A3B8; }
 
     .features-grid {
       display: grid;
@@ -236,18 +318,21 @@
     }
     .feature-card {
       padding: 30px; border-radius: var(--radius-lg);
-      border: 1px solid var(--border); background: var(--surface);
-      transition: box-shadow 0.2s;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.04);
+      transition: box-shadow 0.2s, border-color 0.2s;
     }
-    .feature-card:hover { box-shadow: 0 6px 24px rgba(37,99,235,0.08); }
+    .feature-card:hover {
+      box-shadow: 0 6px 28px rgba(37,99,235,0.18);
+      border-color: rgba(96,165,250,0.3);
+    }
     .feat-icon {
       width: 50px; height: 50px; border-radius: var(--radius-md);
-      background: var(--primary-light); color: var(--primary);
       display: flex; align-items: center; justify-content: center;
       font-size: 20px; margin-bottom: 18px;
     }
-    .feature-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
-    .feature-card p  { font-size: 13px; color: var(--text-secondary); line-height: 1.7; }
+    .feature-card h3 { font-size: 16px; font-weight: 600; color: #F1F5F9; margin-bottom: 8px; }
+    .feature-card p  { font-size: 13px; color: #94A3B8; line-height: 1.7; }
 
     .lp-footer {
       padding: 36px 24px; text-align: center;
@@ -1490,26 +1575,118 @@
 
         <!-- ── Hero ── -->
         <section class="lp-hero">
-          <div class="hero-content">
-            <div class="hero-badge">
-              <i class="fas fa-utensils"></i> 飲食チェーン向け SaaS
+          <div class="hero-inner">
+            <div class="hero-content">
+              <div class="hero-badge">
+                <i class="fas fa-utensils"></i> 飲食チェーン向け SaaS
+              </div>
+              <h1 class="hero-title">
+                現場の品質を、<br><span>仕組み</span>で守る。
+              </h1>
+              <p class="hero-desc">
+                チェック業務・修繕報告・動画研修を<br>
+                ひとつのプラットフォームで完結。<br>
+                本部から全店舗をリアルタイムで管理できます。
+              </p>
+              <div class="hero-actions">
+                <button class="btn btn-primary btn-lg" onclick="openLoginModal()">
+                  <i class="fab fa-google"></i> Googleでログイン
+                </button>
+                <button class="btn btn-lg"
+                  style="background:rgba(255,255,255,0.08);color:#CBD5E1;border:1px solid rgba(255,255,255,0.15);"
+                  onclick="document.getElementById('lp-features').scrollIntoView({behavior:'smooth'})">
+                  <i class="fas fa-arrow-down"></i> 機能を見る
+                </button>
+              </div>
             </div>
-            <h1 class="hero-title">
-              スキルと品質を<span>映像</span>で<br>つなぐ管理プラットフォーム
-            </h1>
-            <p class="hero-desc">
-              SkillReelは、飲食チェーンの本部・店長・スタッフが<br>
-              チェック業務・修繕報告・動画共有をひとつの画面で完結できる<br>
-              クラウド型 SaaS です。
-            </p>
-            <div class="hero-actions">
-              <button class="btn btn-primary btn-lg" onclick="openLoginModal()">
-                <i class="fab fa-google"></i> Googleでログイン
-              </button>
-              <button class="btn btn-outline btn-lg"
-                onclick="document.getElementById('lp-features').scrollIntoView({behavior:'smooth'})">
-                <i class="fas fa-arrow-down"></i> 機能を見る
-              </button>
+            <div class="hero-mock">
+              <svg viewBox="0 0 400 280" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;">
+                <rect width="400" height="280" rx="12" fill="#0F172A"/>
+                <!-- sidebar -->
+                <rect x="0" y="0" width="90" height="280" rx="12" fill="#1E293B"/>
+                <rect x="14" y="20" width="62" height="8" rx="4" fill="#334155"/>
+                <rect x="14" y="52" width="62" height="8" rx="4" fill="#2563EB" opacity="0.8"/>
+                <rect x="14" y="70" width="48" height="6" rx="3" fill="#334155"/>
+                <rect x="14" y="88" width="55" height="6" rx="3" fill="#334155"/>
+                <rect x="14" y="106" width="50" height="6" rx="3" fill="#334155"/>
+                <!-- KPI cards -->
+                <rect x="106" y="16" width="80" height="48" rx="8" fill="#1E293B"/>
+                <rect x="112" y="24" width="30" height="5" rx="2.5" fill="#475569"/>
+                <rect x="112" y="34" width="44" height="10" rx="4" fill="#60A5FA"/>
+                <rect x="198" y="16" width="80" height="48" rx="8" fill="#1E293B"/>
+                <rect x="204" y="24" width="30" height="5" rx="2.5" fill="#475569"/>
+                <rect x="204" y="34" width="44" height="10" rx="4" fill="#34D399"/>
+                <rect x="290" y="16" width="98" height="48" rx="8" fill="#1E293B"/>
+                <rect x="296" y="24" width="30" height="5" rx="2.5" fill="#475569"/>
+                <rect x="296" y="34" width="44" height="10" rx="4" fill="#F59E0B"/>
+                <!-- bar chart -->
+                <rect x="106" y="76" width="180" height="104" rx="8" fill="#1E293B"/>
+                <rect x="118" y="110" width="16" height="54" rx="3" fill="#2563EB" opacity="0.7"/>
+                <rect x="142" y="96" width="16" height="68" rx="3" fill="#2563EB" opacity="0.85"/>
+                <rect x="166" y="120" width="16" height="44" rx="3" fill="#2563EB" opacity="0.6"/>
+                <rect x="190" y="88" width="16" height="76" rx="3" fill="#2563EB"/>
+                <rect x="214" y="104" width="16" height="60" rx="3" fill="#2563EB" opacity="0.75"/>
+                <rect x="238" y="114" width="16" height="50" rx="3" fill="#2563EB" opacity="0.65"/>
+                <!-- list -->
+                <rect x="296" y="76" width="92" height="104" rx="8" fill="#1E293B"/>
+                <rect x="306" y="90" width="60" height="5" rx="2.5" fill="#334155"/>
+                <rect x="306" y="104" width="50" height="5" rx="2.5" fill="#334155"/>
+                <rect x="306" y="118" width="56" height="5" rx="2.5" fill="#334155"/>
+                <rect x="306" y="132" width="44" height="5" rx="2.5" fill="#334155"/>
+                <rect x="306" y="146" width="52" height="5" rx="2.5" fill="#334155"/>
+                <!-- bottom row -->
+                <rect x="106" y="192" width="130" height="72" rx="8" fill="#1E293B"/>
+                <rect x="116" y="206" width="80" height="5" rx="2.5" fill="#334155"/>
+                <rect x="116" y="220" width="100" height="5" rx="2.5" fill="#334155"/>
+                <rect x="116" y="234" width="70" height="5" rx="2.5" fill="#334155"/>
+                <rect x="248" y="192" width="140" height="72" rx="8" fill="#1E293B"/>
+                <rect x="258" y="206" width="40" height="5" rx="2.5" fill="#475569"/>
+                <circle cx="272" cy="234" r="16" fill="#2563EB" opacity="0.3"/>
+                <circle cx="272" cy="234" r="8" fill="#60A5FA"/>
+              </svg>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── Stats ── -->
+        <section class="lp-stats">
+          <div class="stats-grid">
+            <div>
+              <div class="stat-number">3つ</div>
+              <div class="stat-label">の業務をひとつに統合<br>チェック・修繕・動画</div>
+            </div>
+            <div>
+              <div class="stat-number">AI</div>
+              <div class="stat-label">による商品チェック自動判定<br>写真を撮るだけで合否判定</div>
+            </div>
+            <div>
+              <div class="stat-number">月次</div>
+              <div class="stat-label">ダッシュボードで全店舗の<br>品質スコアを可視化</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── Pain Points ── -->
+        <section class="lp-pain">
+          <div class="section-header">
+            <h2>こんな課題はありませんか？</h2>
+            <p>飲食チェーンが抱える現場管理の3大ペイン</p>
+          </div>
+          <div class="pain-grid">
+            <div class="pain-card">
+              <div class="pain-icon"><i class="fas fa-clipboard-list"></i></div>
+              <h3>チェックが紙・LINEでバラバラ</h3>
+              <p>店舗ごとに提出方法が違い、本部が全体状況を把握できない。記録の抜け漏れも多発。</p>
+            </div>
+            <div class="pain-card">
+              <div class="pain-icon"><i class="fas fa-tools"></i></div>
+              <h3>修繕報告の対応が遅れる</h3>
+              <p>故障報告がメール・電話で散在し、対応状況が見えない。後回しになって問題が深刻化。</p>
+            </div>
+            <div class="pain-card">
+              <div class="pain-icon"><i class="fas fa-graduation-cap"></i></div>
+              <h3>研修動画が届いていない</h3>
+              <p>本社が作った動画マニュアルがスタッフに浸透しない。誰が見たか確認する手段もない。</p>
             </div>
           </div>
         </section>
@@ -1517,41 +1694,91 @@
         <!-- ── Features ── -->
         <section class="lp-section alt" id="lp-features">
           <div class="section-header">
-            <h2>主な機能</h2>
+            <h2>SkillReelが解決する6つの機能</h2>
             <p>本部から現場スタッフまで、全員が使いやすいツールを提供します</p>
           </div>
           <div class="features-grid">
             <div class="feature-card">
-              <div class="feat-icon"><i class="fas fa-clipboard-check"></i></div>
-              <h3>チェック管理</h3>
-              <p>商品・清掃チェックをデジタル化。写真付きで提出でき、本部がリアルタイムで確認できます。</p>
+              <div class="feat-icon" style="background:rgba(245,158,11,0.15);color:#F59E0B;">
+                <i class="fas fa-clipboard-check"></i>
+              </div>
+              <h3>AI商品チェック</h3>
+              <p>写真を撮るだけでAIが合否を自動判定。チェックの属人化をなくし、基準を統一します。</p>
             </div>
             <div class="feature-card">
-              <div class="feat-icon"><i class="fas fa-wrench"></i></div>
+              <div class="feat-icon" style="background:rgba(16,185,129,0.15);color:#34D399;">
+                <i class="fas fa-broom"></i>
+              </div>
+              <h3>清掃チェック</h3>
+              <p>清掃項目を定型化してデジタル提出。本部が全店舗の提出状況を一覧で管理できます。</p>
+            </div>
+            <div class="feature-card">
+              <div class="feat-icon" style="background:rgba(239,68,68,0.15);color:#F87171;">
+                <i class="fas fa-wrench"></i>
+              </div>
               <h3>修繕報告</h3>
-              <p>設備の不具合を写真と説明文で報告。本部からの返信もアプリ内で完結します。</p>
+              <p>設備の不具合を写真付きで即報告。ステータス管理で対応漏れをゼロにします。</p>
             </div>
             <div class="feature-card">
-              <div class="feat-icon"><i class="fas fa-video"></i></div>
-              <h3>動画共有</h3>
-              <p>調理手順・トレーニング動画を店舗・スタッフに配信。いつでもどこでも閲覧可能。</p>
+              <div class="feat-icon" style="background:rgba(139,92,246,0.15);color:#A78BFA;">
+                <i class="fas fa-video"></i>
+              </div>
+              <h3>動画研修配信</h3>
+              <p>調理手順・トレーニング動画を全店舗へ配信。いいね数で浸透度を把握できます。</p>
             </div>
             <div class="feature-card">
-              <div class="feat-icon"><i class="fas fa-chart-bar"></i></div>
-              <h3>結果分析</h3>
-              <p>チェック提出率・合否状況をダッシュボードで可視化。問題のある店舗を素早く特定。</p>
+              <div class="feat-icon" style="background:rgba(37,99,235,0.15);color:#60A5FA;">
+                <i class="fas fa-chart-bar"></i>
+              </div>
+              <h3>ダッシュボード分析</h3>
+              <p>チェック提出率・修繕件数・動画視聴状況をKPIとしてリアルタイム可視化。</p>
             </div>
             <div class="feature-card">
-              <div class="feat-icon"><i class="fas fa-store"></i></div>
-              <h3>店舗管理</h3>
-              <p>本部から各店舗の店長・スタッフを招待管理。権限に応じた画面を自動提供します。</p>
-            </div>
-            <div class="feature-card">
-              <div class="feat-icon"><i class="fas fa-mobile-alt"></i></div>
-              <h3>スマホ最適化</h3>
-              <p>スタッフ向けはスマートフォン専用UI。現場でサクサク操作できます。</p>
+              <div class="feat-icon" style="background:rgba(20,184,166,0.15);color:#2DD4BF;">
+                <i class="fas fa-bell"></i>
+              </div>
+              <h3>通知・アラート</h3>
+              <p>未提出アラート・修繕対応依頼を役割に応じて自動配信。対応漏れを防ぎます。</p>
             </div>
           </div>
+        </section>
+
+        <!-- ── 3 Steps ── -->
+        <section class="lp-steps">
+          <div class="section-header">
+            <h2>3ステップで導入完了</h2>
+            <p>ITに詳しくない方でも、最短即日で全店舗に展開できます</p>
+          </div>
+          <div class="steps-row">
+            <div class="step-item">
+              <div class="step-num">1</div>
+              <h3>本部アカウント作成</h3>
+              <p>Googleアカウントでサインアップするだけ。初期設定は5分で完了します。</p>
+            </div>
+            <div class="step-arrow"><i class="fas fa-chevron-right"></i></div>
+            <div class="step-item">
+              <div class="step-num">2</div>
+              <h3>店舗・スタッフを招待</h3>
+              <p>招待リンクを送るだけで店長・スタッフが参加。権限は自動で割り当てられます。</p>
+            </div>
+            <div class="step-arrow"><i class="fas fa-chevron-right"></i></div>
+            <div class="step-item">
+              <div class="step-num">3</div>
+              <h3>すぐに運用開始</h3>
+              <p>チェック・修繕・動画の全機能が即日利用可能。操作説明不要のシンプルなUIです。</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── CTA ── -->
+        <section class="lp-cta">
+          <h2>まずは無料でお試しください</h2>
+          <p>クレジットカード不要・導入コストゼロ。現場の品質管理を今すぐ始めましょう。</p>
+          <button class="btn btn-lg"
+            style="background:#fff;color:#1E40AF;font-weight:700;font-size:16px;padding:14px 36px;"
+            onclick="openLoginModal()">
+            <i class="fab fa-google"></i> Googleでログイン
+          </button>
         </section>
 
         <!-- ── Footer ── -->
@@ -2645,14 +2872,17 @@
         const snap = await getDocs(
           query(
             collection(db, COLLECTIONS.repairReports),
-            where('companyId', '==', u.companyId),
-            orderBy('createdAt', 'desc')
+            where('companyId', '==', u.companyId)
           )
         );
         const el = document.getElementById('repair-list');
         if (!el) return;
 
-        if (snap.empty) {
+        const sortedDocs = [...snap.docs].sort(
+          (a, b) => (b.data().createdAt?.seconds || 0) - (a.data().createdAt?.seconds || 0)
+        );
+
+        if (!sortedDocs.length) {
           el.innerHTML = `
             <div class="empty-state">
               <div class="empty-icon"><i class="fas fa-wrench"></i></div>
@@ -2668,7 +2898,7 @@
           resolved:    { label: '解決済み', cls: 'resolved'    },
         };
 
-        el.innerHTML = snap.docs.map(d => {
+        el.innerHTML = sortedDocs.map(d => {
           const r  = d.data();
           const st = statusMeta[r.status] || statusMeta.pending;
           const ts = r.createdAt?.toDate
@@ -2894,11 +3124,12 @@
           query(
             collection(db, 'videos'),
             where('companyId', '==', u.companyId),
-            where('status', '==', 'published'),
-            orderBy('createdAt', 'desc')
+            where('status', '==', 'published')
           )
         );
-        _feedState.videos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        _feedState.videos = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
         const likesSnap = await getDocs(
           query(
             collection(db, 'userLikes'),
@@ -3363,11 +3594,12 @@
           query(
             collection(db, 'videos'),
             where('companyId', '==', u.companyId),
-            where('status', '==', 'published'),
-            orderBy('createdAt', 'desc')
+            where('status', '==', 'published')
           )
         );
-        _feedState.videos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        _feedState.videos = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
         const likesSnap = await getDocs(
           query(
             collection(db, 'userLikes'),
@@ -3404,11 +3636,13 @@
           query(
             collection(db, 'videos'),
             where('companyId', '==', u.companyId),
-            where('status', '==', 'pending'),
-            orderBy('createdAt', 'desc')
+            where('status', '==', 'pending')
           )
         );
-        if (snap.empty) {
+        const sortedVids = [...snap.docs].sort(
+          (a, b) => (b.data().createdAt?.seconds || 0) - (a.data().createdAt?.seconds || 0)
+        );
+        if (!sortedVids.length) {
           container.innerHTML = `
             <div class="empty-state">
               <div class="empty-icon"><i class="fas fa-hourglass"></i></div>
@@ -3416,7 +3650,7 @@
             </div>`;
           return;
         }
-        container.innerHTML = snap.docs.map(d => {
+        container.innerHTML = sortedVids.map(d => {
           const v   = d.data();
           const cat = VIDEO_CATEGORIES.find(c => c.id === v.category) || VIDEO_CATEGORIES[0];
           const ts  = v.createdAt?.toDate
@@ -4133,11 +4367,13 @@
           query(
             collection(db, COLLECTIONS.repairReports),
             where('companyId', '==', u.companyId),
-            where('storeId', '==', u.storeId),
-            orderBy('createdAt', 'desc')
+            where('storeId', '==', u.storeId)
           )
         );
-        if (snap.empty) {
+        const sortedDocs = [...snap.docs].sort(
+          (a, b) => (b.data().createdAt?.seconds || 0) - (a.data().createdAt?.seconds || 0)
+        );
+        if (!sortedDocs.length) {
           el.innerHTML = `
             <div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px;">
               まだ報告はありません
@@ -4149,7 +4385,7 @@
           in_progress: { label: '対応中',   cls: 'in_progress' },
           resolved:    { label: '解決済み', cls: 'resolved'    },
         };
-        el.innerHTML = snap.docs.map(d => {
+        el.innerHTML = sortedDocs.map(d => {
           const r  = d.data();
           const st = statusMeta[r.status] || statusMeta.pending;
           const ts = r.createdAt?.toDate
@@ -4369,11 +4605,13 @@
           query(
             collection(db, COLLECTIONS.repairReports),
             where('companyId', '==', u.companyId),
-            where('storeId', '==', u.storeId),
-            orderBy('createdAt', 'desc')
+            where('storeId', '==', u.storeId)
           )
         );
-        if (snap.empty) {
+        const sortedDocs = [...snap.docs].sort(
+          (a, b) => (b.data().createdAt?.seconds || 0) - (a.data().createdAt?.seconds || 0)
+        );
+        if (!sortedDocs.length) {
           el.innerHTML = `
             <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;">
               まだ報告はありません
@@ -4385,7 +4623,7 @@
           in_progress: { label: '対応中',   cls: 'in_progress' },
           resolved:    { label: '解決済み', cls: 'resolved'    },
         };
-        el.innerHTML = snap.docs.map(d => {
+        el.innerHTML = sortedDocs.map(d => {
           const r  = d.data();
           const st = statusMeta[r.status] || statusMeta.pending;
           const ts = r.createdAt?.toDate
@@ -5046,8 +5284,7 @@
         const snap = await getDocs(
           query(
             collection(db, 'notifications'),
-            where('companyId', '==', u.companyId),
-            orderBy('createdAt', 'desc')
+            where('companyId', '==', u.companyId)
           )
         );
         const items = snap.docs
@@ -5057,7 +5294,8 @@
             if (n.targetRole    && n.targetRole    !== u.role)    return false;
             if (n.targetStoreId && n.targetStoreId !== u.storeId) return false;
             return true;
-          });
+          })
+          .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
         if (!items.length) {
           el.innerHTML = `
             <div style="text-align:center;padding:48px;color:var(--text-muted);">
@@ -5172,8 +5410,7 @@
           getDocs(query(
             collection(db, COLLECTIONS.repairReports),
             where('companyId', '==', u.companyId),
-            where('status', '==', 'pending'),
-            orderBy('createdAt', 'desc')
+            where('status', '==', 'pending')
           )),
           getDocs(query(
             collection(db, 'videos'),
