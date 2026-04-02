@@ -19,44 +19,40 @@ export default async function handler(req, res) {
   }
 
   try {
-    const prompt = `飲食チェーンの品質管理として正解画像と提出画像を比較してください。
-チェックポイント：
-${(checkPoints || []).map((p, i) => `${i + 1}. ${p}`).join('\n')}
-
-以下のJSON形式のみで回答してください（前後に余分なテキスト不要）：
-{"result":"pass","score":85,"comment":"フィードバック内容","details":["項目1のコメント","項目2のコメント"]}`;
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: prompt },
-              { text: '【正解画像】' },
-              { inline_data: { mime_type: correctMediaType || 'image/jpeg', data: correctImageBase64 } },
-              { text: '【提出画像】' },
-              { inline_data: { mime_type: submittedMediaType || 'image/jpeg', data: submittedImageBase64 } },
-            ]
-          }],
-          generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 1000,
-          }
-        })
-      }
-    );
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-5',
+        max_tokens: 1000,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: `飲食チェーンの品質管理として正解画像と提出画像を比較してください。\nチェックポイント：\n${(checkPoints || []).map((p, i) => `${i + 1}. ${p}`).join('\n')}\n\n以下のJSON形式のみで回答してください（前後に余分なテキスト不要）：\n{"result":"pass","score":85,"comment":"フィードバック内容","details":["項目1のコメント","項目2のコメント"]}`
+            },
+            { type: 'text', text: '【正解画像】' },
+            { type: 'image', source: { type: 'base64', media_type: correctMediaType || 'image/jpeg', data: correctImageBase64 } },
+            { type: 'text', text: '【提出画像】' },
+            { type: 'image', source: { type: 'base64', media_type: submittedMediaType || 'image/jpeg', data: submittedImageBase64 } },
+          ]
+        }]
+      })
+    });
 
     const responseText = await response.text();
 
     if (!response.ok) {
-      return res.status(500).json({ error: `Gemini API error: ${response.status} - ${responseText}` });
+      return res.status(500).json({ error: `Anthropic API error: ${response.status} - ${responseText}` });
     }
 
     const data = JSON.parse(responseText);
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const text = data.content?.[0]?.text || '';
     const cleaned = text.replace(/```json|```/g, '').trim();
     const result = JSON.parse(cleaned);
     return res.status(200).json(result);
