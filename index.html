@@ -3121,23 +3121,18 @@
       try {
         const u = state.userData;
         const snap = await getDocs(
-          query(
-            collection(db, 'videos'),
-            where('companyId', '==', u.companyId),
-            where('status', '==', 'published')
-          )
+          query(collection(db, 'videos'), where('companyId', '==', u.companyId))
         );
         _feedState.videos = snap.docs
           .map(d => ({ id: d.id, ...d.data() }))
+          .filter(v => v.status === 'published')
           .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
         const likesSnap = await getDocs(
-          query(
-            collection(db, 'userLikes'),
-            where('userId', '==', u.uid),
-            where('active', '==', true)
-          )
+          query(collection(db, 'userLikes'), where('userId', '==', u.uid))
         );
-        _feedState.likedIds = new Set(likesSnap.docs.map(d => d.data().videoId));
+        _feedState.likedIds = new Set(
+          likesSnap.docs.filter(d => d.data().active === true).map(d => d.data().videoId)
+        );
         renderFeedList();
       } catch (err) {
         console.error('loadFeedVideos error:', err);
@@ -3591,24 +3586,19 @@
       try {
         const u = state.userData;
         const snap = await getDocs(
-          query(
-            collection(db, 'videos'),
-            where('companyId', '==', u.companyId),
-            where('status', '==', 'published')
-          )
+          query(collection(db, 'videos'), where('companyId', '==', u.companyId))
         );
         _feedState.videos = snap.docs
           .map(d => ({ id: d.id, ...d.data() }))
+          .filter(v => v.status === 'published')
           .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
         const likesSnap = await getDocs(
-          query(
-            collection(db, 'userLikes'),
-            where('userId', '==', u.uid),
-            where('active', '==', true)
-          )
+          query(collection(db, 'userLikes'), where('userId', '==', u.uid))
         );
-        _feedState.likedIds = new Set(likesSnap.docs.map(d => d.data().videoId));
-        if (snap.empty) {
+        _feedState.likedIds = new Set(
+          likesSnap.docs.filter(d => d.data().active === true).map(d => d.data().videoId)
+        );
+        if (!_feedState.videos.length) {
           container.innerHTML = `
             <div class="empty-state">
               <div class="empty-icon"><i class="fas fa-video"></i></div>
@@ -3633,15 +3623,11 @@
       try {
         const u = state.userData;
         const snap = await getDocs(
-          query(
-            collection(db, 'videos'),
-            where('companyId', '==', u.companyId),
-            where('status', '==', 'pending')
-          )
+          query(collection(db, 'videos'), where('companyId', '==', u.companyId))
         );
-        const sortedVids = [...snap.docs].sort(
-          (a, b) => (b.data().createdAt?.seconds || 0) - (a.data().createdAt?.seconds || 0)
-        );
+        const sortedVids = [...snap.docs]
+          .filter(d => d.data().status === 'pending')
+          .sort((a, b) => (b.data().createdAt?.seconds || 0) - (a.data().createdAt?.seconds || 0));
         if (!sortedVids.length) {
           container.innerHTML = `
             <div class="empty-state">
@@ -3837,13 +3823,15 @@
         const snap = await getDocs(
           query(
             collection(db, COLLECTIONS.productChecks),
-            where('companyId', '==', u.companyId),
-            where('targetStoreIds', 'array-contains', u.storeId)
+            where('companyId', '==', u.companyId)
           )
         );
         const el = document.getElementById('pcheck-list');
         if (!el) return;
-        if (snap.empty) {
+        const filteredChecks = snap.docs.filter(d =>
+          (d.data().targetStoreIds || []).includes(u.storeId)
+        );
+        if (!filteredChecks.length) {
           el.innerHTML = `
             <div class="empty-state">
               <div class="empty-icon"><i class="fas fa-camera"></i></div>
@@ -3854,16 +3842,26 @@
         }
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthStartMs = monthStart.getTime();
         const resSnap = await getDocs(
           query(
             collection(db, COLLECTIONS.productCheckResults),
-            where('companyId', '==', u.companyId),
-            where('storeId', '==', u.storeId),
-            where('submittedAt', '>=', monthStart)
+            where('companyId', '==', u.companyId)
           )
         );
-        const submittedIds = new Set(resSnap.docs.map(d => d.data().checkId));
-        el.innerHTML = snap.docs.map(d => {
+        const submittedIds = new Set(
+          resSnap.docs
+            .filter(d => {
+              const r = d.data();
+              if (r.storeId !== u.storeId) return false;
+              const ts = r.submittedAt?.toDate
+                ? r.submittedAt.toDate().getTime()
+                : (r.submittedAt?.seconds || 0) * 1000;
+              return ts >= monthStartMs;
+            })
+            .map(d => d.data().checkId)
+        );
+        el.innerHTML = filteredChecks.map(d => {
           const c = d.data();
           const done = submittedIds.has(d.id);
           const today = now.getDate();
@@ -4133,13 +4131,15 @@
         const snap = await getDocs(
           query(
             collection(db, COLLECTIONS.cleaningChecks),
-            where('companyId', '==', u.companyId),
-            where('targetStoreIds', 'array-contains', u.storeId)
+            where('companyId', '==', u.companyId)
           )
         );
         const el = document.getElementById('ccheck-list');
         if (!el) return;
-        if (snap.empty) {
+        const filteredChecks = snap.docs.filter(d =>
+          (d.data().targetStoreIds || []).includes(u.storeId)
+        );
+        if (!filteredChecks.length) {
           el.innerHTML = `
             <div class="empty-state">
               <div class="empty-icon"><i class="fas fa-broom"></i></div>
@@ -4150,16 +4150,26 @@
         }
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthStartMs = monthStart.getTime();
         const resSnap = await getDocs(
           query(
             collection(db, COLLECTIONS.cleaningCheckResults),
-            where('companyId', '==', u.companyId),
-            where('storeId', '==', u.storeId),
-            where('submittedAt', '>=', monthStart)
+            where('companyId', '==', u.companyId)
           )
         );
-        const submittedIds = new Set(resSnap.docs.map(d => d.data().checkId));
-        el.innerHTML = snap.docs.map(d => {
+        const submittedIds = new Set(
+          resSnap.docs
+            .filter(d => {
+              const r = d.data();
+              if (r.storeId !== u.storeId) return false;
+              const ts = r.submittedAt?.toDate
+                ? r.submittedAt.toDate().getTime()
+                : (r.submittedAt?.seconds || 0) * 1000;
+              return ts >= monthStartMs;
+            })
+            .map(d => d.data().checkId)
+        );
+        el.innerHTML = filteredChecks.map(d => {
           const c = d.data();
           const done = submittedIds.has(d.id);
           const today = now.getDate();
@@ -4364,15 +4374,11 @@
       try {
         const u = state.userData;
         const snap = await getDocs(
-          query(
-            collection(db, COLLECTIONS.repairReports),
-            where('companyId', '==', u.companyId),
-            where('storeId', '==', u.storeId)
-          )
+          query(collection(db, COLLECTIONS.repairReports), where('companyId', '==', u.companyId))
         );
-        const sortedDocs = [...snap.docs].sort(
-          (a, b) => (b.data().createdAt?.seconds || 0) - (a.data().createdAt?.seconds || 0)
-        );
+        const sortedDocs = [...snap.docs]
+          .filter(d => d.data().storeId === u.storeId)
+          .sort((a, b) => (b.data().createdAt?.seconds || 0) - (a.data().createdAt?.seconds || 0));
         if (!sortedDocs.length) {
           el.innerHTML = `
             <div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px;">
@@ -4602,15 +4608,11 @@
       try {
         const u = state.userData;
         const snap = await getDocs(
-          query(
-            collection(db, COLLECTIONS.repairReports),
-            where('companyId', '==', u.companyId),
-            where('storeId', '==', u.storeId)
-          )
+          query(collection(db, COLLECTIONS.repairReports), where('companyId', '==', u.companyId))
         );
-        const sortedDocs = [...snap.docs].sort(
-          (a, b) => (b.data().createdAt?.seconds || 0) - (a.data().createdAt?.seconds || 0)
-        );
+        const sortedDocs = [...snap.docs]
+          .filter(d => d.data().storeId === u.storeId)
+          .sort((a, b) => (b.data().createdAt?.seconds || 0) - (a.data().createdAt?.seconds || 0));
         if (!sortedDocs.length) {
           el.innerHTML = `
             <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;">
@@ -4882,16 +4884,13 @@
       try {
         const u    = state.userData;
         const snap = await getDocs(
-          query(
-            collection(db, 'users'),
-            where('storeId', '==', u.storeId),
-            where('role',    '==', 'staff')
-          )
+          query(collection(db, 'users'), where('storeId', '==', u.storeId))
         );
         const el = document.getElementById('staff-list');
         if (!el) return;
+        const staffDocs = snap.docs.filter(d => d.data().role === 'staff');
 
-        if (snap.empty) {
+        if (!staffDocs.length) {
           el.innerHTML = `
             <div class="empty-state">
               <div class="empty-icon"><i class="fas fa-users"></i></div>
@@ -4902,7 +4901,7 @@
           return;
         }
 
-        el.innerHTML = snap.docs.map(d => {
+        el.innerHTML = staffDocs.map(d => {
           const s = d.data();
           return `
             <div style="background:var(--surface);border:1px solid var(--border);
@@ -5404,32 +5403,38 @@
           )),
           getDocs(query(
             collection(db, COLLECTIONS.productCheckResults),
-            where('companyId', '==', u.companyId),
-            where('submittedAt', '>=', monthStart)
+            where('companyId', '==', u.companyId)
           )),
           getDocs(query(
             collection(db, COLLECTIONS.repairReports),
-            where('companyId', '==', u.companyId),
-            where('status', '==', 'pending')
+            where('companyId', '==', u.companyId)
           )),
           getDocs(query(
             collection(db, 'videos'),
-            where('companyId', '==', u.companyId),
-            where('status', '==', 'pending')
+            where('companyId', '==', u.companyId)
           )),
         ]);
 
+        const monthStartMs = monthStart.getTime();
         const totalStores    = storesSnap.size;
-        const results        = resultsSnap.docs.map(d => d.data());
+        const results        = resultsSnap.docs
+          .map(d => d.data())
+          .filter(r => {
+            const ts = r.submittedAt?.toDate
+              ? r.submittedAt.toDate().getTime()
+              : (r.submittedAt?.seconds || 0) * 1000;
+            return ts >= monthStartMs;
+          });
         const submittedIds   = new Set(results.map(r => r.storeId));
         const submittedCount = submittedIds.size;
         const passCount      = results.filter(r => r.judgment?.pass === true).length;
         const notSubmitted   = Math.max(0, totalStores - submittedCount);
         const rate           = totalStores > 0
           ? Math.round(submittedCount / totalStores * 100) : 0;
-        const pendingRepairs = repairsSnap.size;
-        const pendingVideos  = pendingVidsSnap.size;
-        const latestRepairs  = repairsSnap.docs.slice(0, 3);
+        const pendingRepairDocs = repairsSnap.docs.filter(d => d.data().status === 'pending');
+        const pendingRepairs = pendingRepairDocs.length;
+        const pendingVideos  = pendingVidsSnap.docs.filter(d => d.data().status === 'pending').length;
+        const latestRepairs  = pendingRepairDocs.slice(0, 3);
 
         const statusMeta = {
           pending:     { label: '対応待ち', cls: 'pending'     },
@@ -5560,49 +5565,69 @@
                cChecksSnap, cResultsSnap, repairsSnap] = await Promise.all([
           getDocs(query(
             collection(db, COLLECTIONS.productChecks),
-            where('companyId', '==', u.companyId),
-            where('targetStoreIds', 'array-contains', u.storeId)
+            where('companyId', '==', u.companyId)
           )),
           getDocs(query(
             collection(db, COLLECTIONS.productCheckResults),
-            where('companyId', '==', u.companyId),
-            where('storeId', '==', u.storeId),
-            where('submittedAt', '>=', monthStart)
+            where('companyId', '==', u.companyId)
           )),
           getDocs(query(
             collection(db, COLLECTIONS.cleaningChecks),
-            where('companyId', '==', u.companyId),
-            where('targetStoreIds', 'array-contains', u.storeId)
+            where('companyId', '==', u.companyId)
           )),
           getDocs(query(
             collection(db, COLLECTIONS.cleaningCheckResults),
-            where('companyId', '==', u.companyId),
-            where('storeId', '==', u.storeId),
-            where('submittedAt', '>=', monthStart)
+            where('companyId', '==', u.companyId)
           )),
           getDocs(query(
             collection(db, COLLECTIONS.repairReports),
-            where('companyId', '==', u.companyId),
-            where('storeId', '==', u.storeId),
-            where('status', '==', 'pending')
+            where('companyId', '==', u.companyId)
           )),
         ]);
 
-        const today = now.getDate();
-        const totalP     = pChecksSnap.size;
-        const submittedP = pResultsSnap.size;
-        const totalC     = cChecksSnap.size;
-        const submittedC = cResultsSnap.size;
-        const pendingRep = repairsSnap.size;
+        const monthStartMs = monthStart.getTime();
+        const pChecks  = pChecksSnap.docs.filter(d =>
+          (d.data().targetStoreIds || []).includes(u.storeId)
+        );
+        const pResults = pResultsSnap.docs.filter(d => {
+          const r = d.data();
+          if (r.storeId !== u.storeId) return false;
+          const ts = r.submittedAt?.toDate
+            ? r.submittedAt.toDate().getTime()
+            : (r.submittedAt?.seconds || 0) * 1000;
+          return ts >= monthStartMs;
+        });
+        const cChecks  = cChecksSnap.docs.filter(d =>
+          (d.data().targetStoreIds || []).includes(u.storeId)
+        );
+        const cResults = cResultsSnap.docs.filter(d => {
+          const r = d.data();
+          if (r.storeId !== u.storeId) return false;
+          const ts = r.submittedAt?.toDate
+            ? r.submittedAt.toDate().getTime()
+            : (r.submittedAt?.seconds || 0) * 1000;
+          return ts >= monthStartMs;
+        });
+        const repairs  = repairsSnap.docs.filter(d => {
+          const r = d.data();
+          return r.storeId === u.storeId && r.status === 'pending';
+        });
 
-        const overdueP = pChecksSnap.docs.filter(d => {
+        const today = now.getDate();
+        const totalP     = pChecks.length;
+        const submittedP = pResults.length;
+        const totalC     = cChecks.length;
+        const submittedC = cResults.length;
+        const pendingRep = repairs.length;
+
+        const overdueP = pChecks.filter(d => {
           const c = d.data();
-          return !pResultsSnap.docs.some(r => r.data().checkId === d.id)
+          return !pResults.some(r => r.data().checkId === d.id)
             && c.dayOfMonth && today > c.dayOfMonth;
         }).length;
-        const overdueC = cChecksSnap.docs.filter(d => {
+        const overdueC = cChecks.filter(d => {
           const c = d.data();
-          return !cResultsSnap.docs.some(r => r.data().checkId === d.id)
+          return !cResults.some(r => r.data().checkId === d.id)
             && c.dayOfMonth && today > c.dayOfMonth;
         }).length;
 
@@ -5712,18 +5737,29 @@
       try {
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthStartMs = monthStart.getTime();
         const [pResSnap, cResSnap] = await Promise.all([
           getDocs(query(
             collection(db, COLLECTIONS.productCheckResults),
-            where('submittedBy', '==', u.uid),
-            where('submittedAt', '>=', monthStart)
+            where('submittedBy', '==', u.uid)
           )),
           getDocs(query(
             collection(db, COLLECTIONS.cleaningCheckResults),
-            where('submittedBy', '==', u.uid),
-            where('submittedAt', '>=', monthStart)
+            where('submittedBy', '==', u.uid)
           )),
         ]);
+        const pCount = pResSnap.docs.filter(d => {
+          const ts = d.data().submittedAt?.toDate
+            ? d.data().submittedAt.toDate().getTime()
+            : (d.data().submittedAt?.seconds || 0) * 1000;
+          return ts >= monthStartMs;
+        }).length;
+        const cCount = cResSnap.docs.filter(d => {
+          const ts = d.data().submittedAt?.toDate
+            ? d.data().submittedAt.toDate().getTime()
+            : (d.data().submittedAt?.seconds || 0) * 1000;
+          return ts >= monthStartMs;
+        }).length;
         const checkEl = document.getElementById('mypage-check-status');
         if (checkEl) {
           checkEl.innerHTML = `
@@ -5732,7 +5768,7 @@
                           border:1px solid var(--border);border-radius:var(--radius-md);
                           padding:14px;text-align:center;">
                 <div style="font-size:24px;font-weight:700;color:var(--primary);">
-                  ${pResSnap.size}
+                  ${pCount}
                 </div>
                 <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">
                   商品チェック
@@ -5742,7 +5778,7 @@
                           border:1px solid var(--border);border-radius:var(--radius-md);
                           padding:14px;text-align:center;">
                 <div style="font-size:24px;font-weight:700;color:var(--success);">
-                  ${cResSnap.size}
+                  ${cCount}
                 </div>
                 <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">
                   清掃チェック
@@ -5757,15 +5793,12 @@
       // Liked videos
       try {
         const likesSnap = await getDocs(
-          query(
-            collection(db, 'userLikes'),
-            where('userId', '==', u.uid),
-            where('active', '==', true)
-          )
+          query(collection(db, 'userLikes'), where('userId', '==', u.uid))
         );
+        const activeLikes = likesSnap.docs.filter(d => d.data().active === true);
         const likedEl = document.getElementById('mypage-liked-videos');
         if (!likedEl) return;
-        if (likesSnap.empty) {
+        if (!activeLikes.length) {
           likedEl.innerHTML = `
             <div style="text-align:center;padding:20px;color:var(--text-muted);">
               <i class="fas fa-heart"
@@ -5774,7 +5807,7 @@
             </div>`;
           return;
         }
-        const videoIds = likesSnap.docs.map(d => d.data().videoId);
+        const videoIds = activeLikes.map(d => d.data().videoId);
         const videoDocs = await Promise.all(
           videoIds.slice(0, 10).map(id => getDoc(doc(db, 'videos', id)))
         );
