@@ -4212,7 +4212,11 @@
                      <i class="fas fa-camera"></i> 実施
                    </button>`
                 : done
-                  ? `<span style="font-size:12px;color:var(--success);font-weight:600;">完了</span>`
+                  ? `<button class="btn btn-outline btn-sm"
+                             style="color:var(--success);border-color:var(--success);"
+                             onclick="openCheckResultDetail('${d.id}','${ctx}')">
+                       <i class="fas fa-chart-bar"></i> 結果を見る
+                     </button>`
                   : ''
               }
             </div>`;
@@ -4421,6 +4425,151 @@
       }
     }
     window.runPCheckAI = runPCheckAI;
+
+    async function openCheckResultDetail(checkId, ctx) {
+      const u = state.userData;
+
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.id = 'check-result-modal';
+      overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+      overlay.innerHTML = `
+        <div class="modal modal-lg" onclick="event.stopPropagation()"
+             style="max-height:85vh;overflow-y:auto;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+            <h2 class="modal-title" style="margin-bottom:0;">チェック結果</h2>
+            <button class="icon-btn" style="color:var(--text-secondary);font-size:18px;"
+                    onclick="document.getElementById('check-result-modal').remove()">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <div id="check-result-modal-body">
+            <div style="text-align:center;padding:40px;color:var(--text-muted);">
+              <div class="spinner" style="width:28px;height:28px;margin:0 auto 10px;"></div>
+              <p style="font-size:14px;">読み込み中...</p>
+            </div>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+
+      try {
+        const snap = await getDocs(query(
+          collection(db, COLLECTIONS.productCheckResults),
+          where('companyId', '==', u.companyId),
+          where('storeId', '==', u.storeId),
+          where('checkId', '==', checkId)
+        ));
+
+        const results = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
+
+        const modalBody = document.getElementById('check-result-modal-body');
+        if (!modalBody) return;
+
+        if (!results.length) {
+          modalBody.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-icon"><i class="fas fa-clipboard"></i></div>
+              <h3>結果が見つかりません</h3>
+            </div>`;
+          return;
+        }
+
+        const r = results[0];
+        const j = r.judgment;
+        const pass = j?.pass ?? (j?.result === 'pass');
+        const ts = r.submittedAt?.toDate
+          ? r.submittedAt.toDate().toLocaleString('ja-JP') : '';
+
+        const detailRows = (j?.details || []).map(d => `
+          <div class="ai-detail-item ${d.pass ? 'pass' : 'fail'}">
+            <i class="fas ${d.pass ? 'fa-check' : 'fa-times'}"></i>
+            <span>${d.point || d}</span>
+          </div>`).join('');
+
+        let linkedVideoUrl = '';
+        try {
+          const checkSnap = await getDoc(doc(db, COLLECTIONS.productChecks, checkId));
+          if (checkSnap.exists()) linkedVideoUrl = checkSnap.data().linkedVideoUrl || '';
+        } catch(e) {}
+
+        modalBody.innerHTML = `
+          <div style="margin-bottom:16px;">
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">
+              <i class="fas fa-clock"></i> 提出日時：${ts}
+            </div>
+            <div style="font-size:13px;color:var(--text-secondary);">
+              提出者：${r.submitterName || '不明'}
+            </div>
+          </div>
+
+          ${r.imageUrl ? `
+            <div style="margin-bottom:16px;">
+              <div style="font-size:12px;font-weight:600;color:var(--text-muted);
+                          text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">
+                提出画像
+              </div>
+              <img src="${r.imageUrl}" alt="提出画像"
+                   style="width:100%;max-height:240px;object-fit:cover;
+                          border-radius:var(--radius-md);border:1px solid var(--border);">
+            </div>` : ''}
+
+          <div class="ai-result-block ${pass ? 'pass' : 'fail'}" style="text-align:center;">
+            <div class="ai-verdict">
+              <i class="fas ${pass ? 'fa-circle-check' : 'fa-circle-xmark'}"></i>
+              ${pass ? '合格' : '不合格'}
+            </div>
+            <div class="ai-score">スコア: <strong>${j?.score ?? '-'}</strong> / 100</div>
+            <div class="ai-comment">${j?.comment || 'AIコメントなし'}</div>
+            ${detailRows ? `<div class="ai-details" style="margin-top:12px;">${detailRows}</div>` : ''}
+          </div>
+
+          ${!pass && linkedVideoUrl ? `
+            <div style="margin-top:16px;padding:14px 16px;
+                        background:var(--warning-light);
+                        border:1px solid #FDE68A;
+                        border-radius:var(--radius-md);">
+              <div style="font-size:13px;font-weight:700;color:var(--warning);margin-bottom:8px;">
+                <i class="fas fa-video"></i> 関連マニュアルを確認してください
+              </div>
+              <button onclick="openVideoModal({
+                title:'マニュアル動画',
+                youtubeUrl:'${linkedVideoUrl}',
+                isOfficial:true,
+                uploaderName:'本部'
+              })" class="btn btn-sm" style="background:var(--warning);color:white;border:none;">
+                <i class="fas fa-play"></i> マニュアルを見る
+              </button>
+            </div>` : ''}
+
+          ${results.length > 1 ? `
+            <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px;">
+              <div style="font-size:13px;font-weight:600;margin-bottom:10px;">過去の提出履歴</div>
+              ${results.slice(1).map(old => {
+                const oldPass = old.judgment?.pass ?? (old.judgment?.result === 'pass');
+                const oldTs = old.submittedAt?.toDate
+                  ? old.submittedAt.toDate().toLocaleString('ja-JP') : '';
+                return `
+                  <div style="display:flex;align-items:center;gap:10px;padding:8px 0;
+                              border-bottom:1px solid var(--border);">
+                    <span style="font-size:18px;">${oldPass ? '✅' : '❌'}</span>
+                    <span style="font-size:13px;color:var(--text-secondary);">${oldTs}</span>
+                    <span style="font-size:12px;font-weight:600;
+                                 color:${oldPass ? 'var(--success)' : 'var(--danger)'};">
+                      ${old.judgment?.score ?? '-'}点
+                    </span>
+                  </div>`;
+              }).join('')}
+            </div>` : ''}
+        `;
+      } catch (err) {
+        console.error('openCheckResultDetail error:', err);
+        showToast('結果の読み込みに失敗しました', 'error');
+        document.getElementById('check-result-modal')?.remove();
+      }
+    }
+    window.openCheckResultDetail = openCheckResultDetail;
 
     async function submitPCheckResult(ctx) {
       if (!_pExec.imageUrl) {
