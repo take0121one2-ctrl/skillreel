@@ -1909,7 +1909,7 @@
     const HQ_MENU = [
       { key: 'dashboard', label: 'ダッシュボード', icon: 'fa-th-large'       },
       { key: 'checks',    label: 'チェック管理',   icon: 'fa-clipboard-check' },
-      { key: 'results',   label: '結果確認',        icon: 'fa-chart-bar'       },
+      { key: 'results',   label: 'チェック結果確認', icon: 'fa-chart-bar'       },
       { key: 'repairs',   label: '修繕報告',        icon: 'fa-wrench'          },
       { key: 'videos',    label: '動画管理',        icon: 'fa-video'           },
       { key: 'stores',    label: '店舗管理',        icon: 'fa-store'           },
@@ -2171,10 +2171,48 @@
     window.submitAddStore = submitAddStore;
 
     /* ============================================================
+       Month Helpers (shared across checks & results)
+       ============================================================ */
+    function currentYearMonth() {
+      const now = new Date();
+      return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    }
+
+    function buildMonthOptions(selectedVal) {
+      const now = new Date();
+      const current = currentYearMonth();
+      const sel = selectedVal || current;
+      const parts = [];
+      for (let i = -3; i <= 1; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+        const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        const label = `${d.getFullYear()}年${d.getMonth()+1}月`;
+        parts.push(`<option value="${val}" ${val === sel ? 'selected' : ''}>${label}</option>`);
+      }
+      return parts.join('');
+    }
+
+    function ymToLabel(ym) {
+      const [y, m] = ym.split('-');
+      return `${y}年${parseInt(m)}月`;
+    }
+
+    /* ============================================================
        HQ: チェック管理画面
        ============================================================ */
     async function renderHQChecks(body) {
       body.innerHTML = `
+        <div class="section-row" style="margin-bottom:16px;">
+          <span class="section-row-title">チェック管理</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label style="font-size:13px;color:var(--text-secondary);">対象年月：</label>
+            <select id="hq-check-month" class="form-input"
+                    style="width:auto;padding:6px 12px;font-size:13px;"
+                    onchange="onHQCheckMonthChange()">
+              ${buildMonthOptions()}
+            </select>
+          </div>
+        </div>
         <div class="tab-switch">
           <button class="tab-switch-btn active" id="tab-pck-btn"
                   onclick="switchHQCheckTab('product')">
@@ -2189,6 +2227,15 @@
       `;
       await switchHQCheckTab('product');
     }
+
+    async function onHQCheckMonthChange() {
+      const container = document.getElementById('hq-check-content');
+      if (!container) return;
+      const tab = document.getElementById('tab-pck-btn')?.classList.contains('active')
+        ? 'product' : 'cleaning';
+      await switchHQCheckTab(tab);
+    }
+    window.onHQCheckMonthChange = onHQCheckMonthChange;
 
     async function switchHQCheckTab(tab) {
       document.getElementById('tab-pck-btn')?.classList.toggle('active', tab === 'product');
@@ -2205,9 +2252,14 @@
 
     /* 商品チェック設定一覧 */
     async function renderProductCheckSettings(container) {
+      const yearMonth = document.getElementById('hq-check-month')?.value || currentYearMonth();
       container.innerHTML = `
         <div class="section-row">
-          <span class="section-row-title">商品チェック設定一覧</span>
+          <span class="section-row-title">
+            商品チェック設定一覧
+            <span style="font-size:12px;color:var(--text-secondary);font-weight:400;
+                         margin-left:8px;">${ymToLabel(yearMonth)}</span>
+          </span>
           <button class="btn btn-primary btn-sm" onclick="openProductCheckModal()">
             <i class="fas fa-plus"></i> 新規作成
           </button>
@@ -2227,17 +2279,22 @@
         const el = document.getElementById('pck-list');
         if (!el) return;
 
-        if (snap.empty) {
+        const filtered = snap.docs.filter(d => {
+          const ym = d.data().yearMonth;
+          return ym ? ym === yearMonth : d.data().yearMonth === undefined;
+        });
+
+        if (!filtered.length) {
           el.innerHTML = `
             <div class="empty-state">
               <div class="empty-icon"><i class="fas fa-camera"></i></div>
-              <h3>商品チェックが登録されていません</h3>
-              <p>「新規作成」ボタンから最初のチェックを作成してください</p>
+              <h3>${ymToLabel(yearMonth)}の商品チェックはありません</h3>
+              <p>「新規作成」ボタンからチェックを作成してください</p>
             </div>`;
           return;
         }
 
-        el.innerHTML = `<div class="check-config-grid">${snap.docs.map(d => {
+        el.innerHTML = `<div class="check-config-grid">${filtered.map(d => {
           const c = d.data();
           return `
             <div class="check-config-card">
@@ -2263,9 +2320,14 @@
 
     /* 清掃チェック設定一覧 */
     async function renderCleaningCheckSettings(container) {
+      const yearMonth = document.getElementById('hq-check-month')?.value || currentYearMonth();
       container.innerHTML = `
         <div class="section-row">
-          <span class="section-row-title">清掃チェック設定一覧</span>
+          <span class="section-row-title">
+            清掃チェック設定一覧
+            <span style="font-size:12px;color:var(--text-secondary);font-weight:400;
+                         margin-left:8px;">${ymToLabel(yearMonth)}</span>
+          </span>
           <button class="btn btn-primary btn-sm" onclick="openCleaningCheckModal()">
             <i class="fas fa-plus"></i> 新規作成
           </button>
@@ -2285,17 +2347,22 @@
         const el = document.getElementById('cck-list');
         if (!el) return;
 
-        if (snap.empty) {
+        const filtered = snap.docs.filter(d => {
+          const ym = d.data().yearMonth;
+          return ym ? ym === yearMonth : d.data().yearMonth === undefined;
+        });
+
+        if (!filtered.length) {
           el.innerHTML = `
             <div class="empty-state">
               <div class="empty-icon"><i class="fas fa-broom"></i></div>
-              <h3>清掃チェックが登録されていません</h3>
-              <p>「新規作成」ボタンから最初のチェックを作成してください</p>
+              <h3>${ymToLabel(yearMonth)}の清掃チェックはありません</h3>
+              <p>「新規作成」ボタンからチェックを作成してください</p>
             </div>`;
           return;
         }
 
-        el.innerHTML = `<div class="check-config-grid">${snap.docs.map(d => {
+        el.innerHTML = `<div class="check-config-grid">${filtered.map(d => {
           const c = d.data();
           return `
             <div class="check-config-card">
@@ -2375,6 +2442,12 @@
               </button>
             </div>
             <div class="form-group">
+              <label class="form-label">対象年月 <span style="color:var(--danger)">*</span></label>
+              <select id="pck-year-month" class="form-input">
+                ${buildMonthOptions()}
+              </select>
+            </div>
+            <div class="form-group">
               <label class="form-label">実施日（毎月）<span style="color:var(--danger)">*</span></label>
               <input id="pck-day" class="form-input" type="number" min="1" max="28"
                      placeholder="1〜28 の数値を入力">
@@ -2446,9 +2519,10 @@
     window.removeCpRow = removeCpRow;
 
     async function submitPckConfig() {
-      const title = document.getElementById('pck-title')?.value?.trim();
-      const day   = parseInt(document.getElementById('pck-day')?.value, 10);
-      const file  = document.getElementById('pck-img-file')?.files[0];
+      const title     = document.getElementById('pck-title')?.value?.trim();
+      const day       = parseInt(document.getElementById('pck-day')?.value, 10);
+      const file      = document.getElementById('pck-img-file')?.files[0];
+      const yearMonth = document.getElementById('pck-year-month')?.value || currentYearMonth();
 
       if (!title)                     { showToast('タイトルを入力してください', 'warning');      return; }
       if (!file)                      { showToast('正解画像をアップロードしてください', 'warning'); return; }
@@ -2472,6 +2546,7 @@
         const docRef = await addDoc(collection(db, COLLECTIONS.productChecks), {
           title, checkPoints, scheduledDay: day,
           targetStoreIds, companyId: u.companyId,
+          yearMonth,
           correctImageUrl: '', linkedVideoIds: [],
           createdAt: serverTimestamp(),
         });
@@ -2542,6 +2617,12 @@
               </button>
             </div>
             <div class="form-group">
+              <label class="form-label">対象年月 <span style="color:var(--danger)">*</span></label>
+              <select id="cck-year-month" class="form-input">
+                ${buildMonthOptions()}
+              </select>
+            </div>
+            <div class="form-group">
               <label class="form-label">実施日（毎月）<span style="color:var(--danger)">*</span></label>
               <input id="cck-day" class="form-input" type="number" min="1" max="28"
                      placeholder="1〜28 の数値を入力">
@@ -2599,8 +2680,9 @@
     window.removeCckRow = removeCckRow;
 
     async function submitCckConfig() {
-      const title = document.getElementById('cck-title')?.value?.trim();
-      const day   = parseInt(document.getElementById('cck-day')?.value, 10);
+      const title     = document.getElementById('cck-title')?.value?.trim();
+      const day       = parseInt(document.getElementById('cck-day')?.value, 10);
+      const yearMonth = document.getElementById('cck-year-month')?.value || currentYearMonth();
 
       if (!title)                      { showToast('タイトルを入力してください', 'warning');     return; }
       if (!day || day < 1 || day > 28) { showToast('実施日を1〜28で入力してください', 'warning'); return; }
@@ -2623,6 +2705,7 @@
         await addDoc(collection(db, COLLECTIONS.cleaningChecks), {
           title, items, scheduledDay: day,
           targetStoreIds, companyId: u.companyId,
+          yearMonth,
           createdAt: serverTimestamp(),
         });
 
@@ -2645,6 +2728,17 @@
        ============================================================ */
     async function renderHQResults(body) {
       body.innerHTML = `
+        <div class="section-row" style="margin-bottom:16px;">
+          <span class="section-row-title">チェック結果確認</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label style="font-size:13px;color:var(--text-secondary);">対象年月：</label>
+            <select id="hq-result-month" class="form-input"
+                    style="width:auto;padding:6px 12px;font-size:13px;"
+                    onchange="onHQResultMonthChange()">
+              ${buildMonthOptions()}
+            </select>
+          </div>
+        </div>
         <div class="tab-switch">
           <button class="tab-switch-btn active" id="tab-pres-btn"
                   onclick="switchHQResultTab('product')">
@@ -2659,6 +2753,15 @@
       `;
       await switchHQResultTab('product');
     }
+
+    async function onHQResultMonthChange() {
+      const container = document.getElementById('hq-result-content');
+      if (!container) return;
+      const tab = document.getElementById('tab-pres-btn')?.classList.contains('active')
+        ? 'product' : 'cleaning';
+      await switchHQResultTab(tab);
+    }
+    window.onHQResultMonthChange = onHQResultMonthChange;
 
     async function switchHQResultTab(tab) {
       document.getElementById('tab-pres-btn')?.classList.toggle('active', tab === 'product');
@@ -2675,15 +2778,14 @@
 
     /* 商品チェック結果一覧 */
     async function renderProductCheckResults(container) {
+      const yearMonth = document.getElementById('hq-result-month')?.value || currentYearMonth();
       container.innerHTML = `
         <div style="text-align:center;padding:40px;color:var(--text-muted);">
           <div class="spinner" style="width:28px;height:28px;margin:0 auto 10px;"></div>
           <p style="font-size:14px;">読み込み中...</p>
         </div>`;
       try {
-        const u          = state.userData;
-        const now        = new Date();
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const u = state.userData;
 
         const [resSnap, storeSnap, chkSnap] = await Promise.all([
           getDocs(query(collection(db, COLLECTIONS.productCheckResults), where('companyId', '==', u.companyId))),
@@ -2692,27 +2794,34 @@
         ]);
 
         const stores  = storeSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        const checks  = chkSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const allChecks = chkSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         const results = resSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        // 当月の結果のみに絞り込む
+        // 選択年月のチェック設定のみ
+        const checks = allChecks.filter(c => {
+          const ym = c.yearMonth;
+          return ym ? ym === yearMonth : true; // yearMonthなし(旧データ)は全月で表示
+        });
+
+        // 選択年月の結果のみに絞り込む
         const monthResults = results.filter(r => {
           if (!r.submittedAt) return false;
-          const ts = r.submittedAt.toDate ? r.submittedAt.toDate() : new Date(r.submittedAt);
-          return ts >= monthStart;
+          const d = r.submittedAt.toDate ? r.submittedAt.toDate() : new Date(r.submittedAt.seconds * 1000);
+          const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+          return ym === yearMonth;
         });
 
         if (!checks.length) {
           container.innerHTML = `
             <div class="empty-state">
               <div class="empty-icon"><i class="fas fa-clipboard-check"></i></div>
-              <h3>商品チェックが設定されていません</h3>
+              <h3>${ymToLabel(yearMonth)}の商品チェックはありません</h3>
               <p>「チェック管理」タブでチェックを作成してください</p>
             </div>`;
           return;
         }
 
-        const monthStr = `${now.getFullYear()}年${now.getMonth() + 1}月`;
+        const monthStr = ymToLabel(yearMonth);
         let html = `
           <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">${monthStr}の提出状況</p>
           <div class="result-table">
@@ -2765,15 +2874,14 @@
 
     /* 清掃チェック結果一覧 */
     async function renderCleaningCheckResults(container) {
+      const yearMonth = document.getElementById('hq-result-month')?.value || currentYearMonth();
       container.innerHTML = `
         <div style="text-align:center;padding:40px;color:var(--text-muted);">
           <div class="spinner" style="width:28px;height:28px;margin:0 auto 10px;"></div>
           <p style="font-size:14px;">読み込み中...</p>
         </div>`;
       try {
-        const u          = state.userData;
-        const now        = new Date();
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const u = state.userData;
 
         const [resSnap, storeSnap, chkSnap] = await Promise.all([
           getDocs(query(collection(db, COLLECTIONS.cleaningCheckResults), where('companyId', '==', u.companyId))),
@@ -2782,26 +2890,32 @@
         ]);
 
         const stores  = storeSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        const checks  = chkSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const allChecks = chkSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         const results = resSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        const checks = allChecks.filter(c => {
+          const ym = c.yearMonth;
+          return ym ? ym === yearMonth : true;
+        });
 
         const monthResults = results.filter(r => {
           if (!r.submittedAt) return false;
-          const ts = r.submittedAt.toDate ? r.submittedAt.toDate() : new Date(r.submittedAt);
-          return ts >= monthStart;
+          const d = r.submittedAt.toDate ? r.submittedAt.toDate() : new Date(r.submittedAt.seconds * 1000);
+          const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+          return ym === yearMonth;
         });
 
         if (!checks.length) {
           container.innerHTML = `
             <div class="empty-state">
               <div class="empty-icon"><i class="fas fa-broom"></i></div>
-              <h3>清掃チェックが設定されていません</h3>
+              <h3>${ymToLabel(yearMonth)}の清掃チェックはありません</h3>
               <p>「チェック管理」タブでチェックを作成してください</p>
             </div>`;
           return;
         }
 
-        const monthStr = `${now.getFullYear()}年${now.getMonth() + 1}月`;
+        const monthStr = ymToLabel(yearMonth);
         let html = `
           <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">${monthStr}の提出状況</p>
           <div class="result-table">
@@ -3154,8 +3268,9 @@
       if (_feedState.scope === 'all') {
         videos = videos.filter(v => v.scope === 'all');
       } else {
+        // 「店舗内」タブは自分の店舗の動画のみ表示
         videos = videos.filter(v =>
-          v.scope === 'all' || (v.scope === 'store' && v.storeId === u.storeId)
+          v.scope === 'store' && v.storeId === u.storeId
         );
       }
       if (_feedState.category) {
@@ -3446,7 +3561,7 @@
             );
             storeEl.innerHTML = snap.docs.map(d => {
               const s = d.data();
-              return `<option value="${d.id}">${s.name || d.id}</option>`;
+              return `<option value="${d.id}">${s.storeName || s.name || d.id}</option>`;
             }).join('');
             if (snap.empty) storeEl.innerHTML = '<option value="">店舗なし</option>';
           } catch (err) {
@@ -3515,7 +3630,9 @@
         } else {
           showToast('動画を公開しました', 'success');
         }
-        // Reset form
+        // Close modal if open
+        document.getElementById('video-upload-modal')?.remove();
+        // Reset form fields if still visible
         ['vid-title', 'vid-youtube-url', 'vid-description'].forEach(id => {
           const el = document.getElementById(id);
           if (el) el.value = '';
@@ -3545,16 +3662,15 @@
       body.innerHTML = `
         <div class="section-row">
           <span class="section-row-title">動画管理</span>
+          <button onclick="openVideoUploadModal('hq')" class="btn btn-primary btn-sm">
+            <i class="fas fa-plus"></i> 動画を投稿
+          </button>
         </div>
         <div class="tab-switch" id="hq-video-tabs" style="margin-bottom:24px;">
           <button class="tab-switch-btn active"
                   onclick="switchHQVideoTab('published')">公開中</button>
           <button class="tab-switch-btn"
-                  onclick="switchHQVideoTab('pending')">
-            審査中
-          </button>
-          <button class="tab-switch-btn"
-                  onclick="switchHQVideoTab('upload')">投稿する</button>
+                  onclick="switchHQVideoTab('pending')">審査中</button>
         </div>
         <div id="hq-video-tab-content"></div>
       `;
@@ -3563,19 +3679,40 @@
 
     async function switchHQVideoTab(tab) {
       const tabBtns = document.querySelectorAll('#hq-video-tabs .tab-switch-btn');
-      const tabs = ['published', 'pending', 'upload'];
+      const tabs = ['published', 'pending'];
       tabBtns.forEach((btn, i) => btn.classList.toggle('active', tabs[i] === tab));
       const content = document.getElementById('hq-video-tab-content');
       if (!content) return;
       if (tab === 'published') {
         await renderHQPublishedVideos(content);
-      } else if (tab === 'pending') {
-        await renderHQPendingVideos(content);
       } else {
-        content.innerHTML = `<div style="max-width:520px;">${buildVideoUploadFormHTML('hq')}</div>`;
+        await renderHQPendingVideos(content);
       }
     }
     window.switchHQVideoTab = switchHQVideoTab;
+
+    function openVideoUploadModal(role) {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.id = 'video-upload-modal';
+      overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+      overlay.innerHTML = `
+        <div class="modal modal-lg" onclick="event.stopPropagation()"
+             style="max-height:90vh;overflow-y:auto;">
+          <div style="display:flex;align-items:center;justify-content:space-between;
+                      margin-bottom:20px;">
+            <h2 class="modal-title" style="margin-bottom:0;">動画を投稿</h2>
+            <button class="icon-btn" style="color:var(--text-secondary);font-size:18px;"
+                    onclick="document.getElementById('video-upload-modal').remove()">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <div>${buildVideoUploadFormHTML(role)}</div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+    }
+    window.openVideoUploadModal = openVideoUploadModal;
 
     async function renderHQPublishedVideos(container) {
       container.innerHTML = `
@@ -3743,31 +3880,20 @@
         <div class="section-row">
           <span class="section-row-title">動画</span>
         </div>
-        <div class="tab-switch" id="mgr-video-tabs" style="margin-bottom:24px;">
-          <button class="tab-switch-btn active"
-                  onclick="switchMgrVideoTab('feed')">フィード</button>
-          <button class="tab-switch-btn"
-                  onclick="switchMgrVideoTab('upload')">投稿する</button>
-        </div>
-        <div id="mgr-video-tab-content"></div>
+        <div id="mgr-video-tab-content">${buildFeedShell()}</div>
+        <button onclick="openVideoUploadModal('manager')" style="
+          position:fixed;bottom:24px;right:24px;
+          width:52px;height:52px;border-radius:50%;
+          background:var(--primary);color:white;
+          border:none;font-size:20px;cursor:pointer;
+          box-shadow:0 4px 16px rgba(37,99,235,0.4);
+          display:flex;align-items:center;justify-content:center;
+          z-index:100;" title="動画を投稿">
+          <i class="fas fa-plus"></i>
+        </button>
       `;
-      await switchMgrVideoTab('feed');
+      await loadFeedVideos();
     }
-
-    async function switchMgrVideoTab(tab) {
-      const tabBtns = document.querySelectorAll('#mgr-video-tabs .tab-switch-btn');
-      const tabs = ['feed', 'upload'];
-      tabBtns.forEach((btn, i) => btn.classList.toggle('active', tabs[i] === tab));
-      const content = document.getElementById('mgr-video-tab-content');
-      if (!content) return;
-      if (tab === 'feed') {
-        content.innerHTML = buildFeedShell();
-        await loadFeedVideos();
-      } else {
-        content.innerHTML = `<div style="max-width:520px;">${buildVideoUploadFormHTML('manager')}</div>`;
-      }
-    }
-    window.switchMgrVideoTab = switchMgrVideoTab;
 
     /* ============================================================
        Check Execution: Shared State & Helpers
@@ -3807,9 +3933,19 @@
 
     async function renderProductCheckList(body, ctx) {
       _pExec = { check: null, imageUrl: '', judgment: null };
+      const ym = currentYearMonth();
       body.innerHTML = `
         <div class="section-row">
           <span class="section-row-title">商品チェック</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label style="font-size:12px;color:var(--text-secondary);">年月：</label>
+            <select id="pcheck-month" class="form-input"
+                    style="width:auto;padding:4px 10px;font-size:12px;"
+                    data-ctx="${ctx}"
+                    onchange="reloadProductCheckList(this)">
+              ${buildMonthOptions(ym)}
+            </select>
+          </div>
         </div>
         <div id="pcheck-list">
           <div style="text-align:center;padding:40px;color:var(--text-muted);">
@@ -3818,36 +3954,46 @@
           </div>
         </div>
       `;
+      await _loadProductCheckList(ctx, ym);
+    }
+    window.renderProductCheckList = renderProductCheckList;
+
+    async function reloadProductCheckList(sel) {
+      await _loadProductCheckList(sel.dataset.ctx, sel.value);
+    }
+    window.reloadProductCheckList = reloadProductCheckList;
+
+    async function _loadProductCheckList(ctx, yearMonth) {
+      const el = document.getElementById('pcheck-list');
+      if (!el) return;
+      el.innerHTML = `
+        <div style="text-align:center;padding:40px;color:var(--text-muted);">
+          <div class="spinner" style="width:28px;height:28px;margin:0 auto 10px;"></div>
+          <p style="font-size:14px;">読み込み中...</p>
+        </div>`;
       try {
         const u = state.userData;
         const snap = await getDocs(
-          query(
-            collection(db, COLLECTIONS.productChecks),
-            where('companyId', '==', u.companyId)
-          )
+          query(collection(db, COLLECTIONS.productChecks), where('companyId', '==', u.companyId))
         );
-        const el = document.getElementById('pcheck-list');
-        if (!el) return;
-        const filteredChecks = snap.docs.filter(d =>
-          (d.data().targetStoreIds || []).includes(u.storeId)
-        );
+        const filteredChecks = snap.docs.filter(d => {
+          const data = d.data();
+          if (!(data.targetStoreIds || []).includes(u.storeId)) return false;
+          const ym = data.yearMonth;
+          return ym ? ym === yearMonth : true;
+        });
         if (!filteredChecks.length) {
           el.innerHTML = `
             <div class="empty-state">
               <div class="empty-icon"><i class="fas fa-camera"></i></div>
-              <h3>商品チェックがありません</h3>
+              <h3>${ymToLabel(yearMonth)}の商品チェックはありません</h3>
               <p>本部が商品チェックを設定するとここに表示されます</p>
             </div>`;
           return;
         }
         const now = new Date();
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        const monthStartMs = monthStart.getTime();
         const resSnap = await getDocs(
-          query(
-            collection(db, COLLECTIONS.productCheckResults),
-            where('companyId', '==', u.companyId)
-          )
+          query(collection(db, COLLECTIONS.productCheckResults), where('companyId', '==', u.companyId))
         );
         const submittedIds = new Set(
           resSnap.docs
@@ -3855,17 +4001,19 @@
               const r = d.data();
               if (r.storeId !== u.storeId) return false;
               const ts = r.submittedAt?.toDate
-                ? r.submittedAt.toDate().getTime()
-                : (r.submittedAt?.seconds || 0) * 1000;
-              return ts >= monthStartMs;
+                ? r.submittedAt.toDate()
+                : new Date((r.submittedAt?.seconds || 0) * 1000);
+              const ym = `${ts.getFullYear()}-${String(ts.getMonth()+1).padStart(2,'0')}`;
+              return ym === yearMonth;
             })
             .map(d => d.data().checkId)
         );
+        const isCurrentMonth = yearMonth === currentYearMonth();
         el.innerHTML = filteredChecks.map(d => {
           const c = d.data();
           const done = submittedIds.has(d.id);
           const today = now.getDate();
-          const overdue = !done && c.dayOfMonth && today > c.dayOfMonth;
+          const overdue = isCurrentMonth && !done && c.scheduledDay && today > c.scheduledDay;
           return `
             <div class="check-exec-card ${done ? 'done' : overdue ? 'overdue' : ''}">
               <div class="check-exec-icon">
@@ -3874,7 +4022,7 @@
               <div class="check-exec-body">
                 <div style="font-weight:600;font-size:15px;">${c.title || 'チェック'}</div>
                 <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">
-                  毎月${c.dayOfMonth || '-'}日
+                  毎月${c.scheduledDay || '-'}日
                   ${done
                     ? '<span style="color:var(--success);margin-left:8px;"><i class="fas fa-check"></i> 提出済み</span>'
                     : overdue
@@ -3883,12 +4031,14 @@
                   }
                 </div>
               </div>
-              ${!done
+              ${isCurrentMonth && !done
                 ? `<button class="btn btn-primary btn-sm"
                            onclick="startProductCheckExec('${d.id}','${ctx}')">
                      <i class="fas fa-camera"></i> 実施
                    </button>`
-                : `<span style="font-size:12px;color:var(--success);font-weight:600;">完了</span>`
+                : done
+                  ? `<span style="font-size:12px;color:var(--success);font-weight:600;">完了</span>`
+                  : ''
               }
             </div>`;
         }).join('');
@@ -3897,7 +4047,6 @@
         showToast('商品チェックの読み込みに失敗しました', 'error');
       }
     }
-    window.renderProductCheckList = renderProductCheckList;
 
     async function startProductCheckExec(checkId, ctx) {
       const bodyEl = ctx === 'staff'
@@ -4115,9 +4264,19 @@
 
     async function renderCleaningCheckList(body, ctx) {
       _cExec = { check: null, itemPhotos: {} };
+      const ym = currentYearMonth();
       body.innerHTML = `
         <div class="section-row">
           <span class="section-row-title">清掃チェック</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label style="font-size:12px;color:var(--text-secondary);">年月：</label>
+            <select id="ccheck-month" class="form-input"
+                    style="width:auto;padding:4px 10px;font-size:12px;"
+                    data-ctx="${ctx}"
+                    onchange="reloadCleaningCheckList(this)">
+              ${buildMonthOptions(ym)}
+            </select>
+          </div>
         </div>
         <div id="ccheck-list">
           <div style="text-align:center;padding:40px;color:var(--text-muted);">
@@ -4126,36 +4285,45 @@
           </div>
         </div>
       `;
+      await _loadCleaningCheckList(ctx, ym);
+    }
+
+    async function reloadCleaningCheckList(sel) {
+      await _loadCleaningCheckList(sel.dataset.ctx, sel.value);
+    }
+    window.reloadCleaningCheckList = reloadCleaningCheckList;
+
+    async function _loadCleaningCheckList(ctx, yearMonth) {
+      const el = document.getElementById('ccheck-list');
+      if (!el) return;
+      el.innerHTML = `
+        <div style="text-align:center;padding:40px;color:var(--text-muted);">
+          <div class="spinner" style="width:28px;height:28px;margin:0 auto 10px;"></div>
+          <p style="font-size:14px;">読み込み中...</p>
+        </div>`;
       try {
         const u = state.userData;
         const snap = await getDocs(
-          query(
-            collection(db, COLLECTIONS.cleaningChecks),
-            where('companyId', '==', u.companyId)
-          )
+          query(collection(db, COLLECTIONS.cleaningChecks), where('companyId', '==', u.companyId))
         );
-        const el = document.getElementById('ccheck-list');
-        if (!el) return;
-        const filteredChecks = snap.docs.filter(d =>
-          (d.data().targetStoreIds || []).includes(u.storeId)
-        );
+        const filteredChecks = snap.docs.filter(d => {
+          const data = d.data();
+          if (!(data.targetStoreIds || []).includes(u.storeId)) return false;
+          const ym = data.yearMonth;
+          return ym ? ym === yearMonth : true;
+        });
         if (!filteredChecks.length) {
           el.innerHTML = `
             <div class="empty-state">
               <div class="empty-icon"><i class="fas fa-broom"></i></div>
-              <h3>清掃チェックがありません</h3>
+              <h3>${ymToLabel(yearMonth)}の清掃チェックはありません</h3>
               <p>本部が清掃チェックを設定するとここに表示されます</p>
             </div>`;
           return;
         }
         const now = new Date();
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        const monthStartMs = monthStart.getTime();
         const resSnap = await getDocs(
-          query(
-            collection(db, COLLECTIONS.cleaningCheckResults),
-            where('companyId', '==', u.companyId)
-          )
+          query(collection(db, COLLECTIONS.cleaningCheckResults), where('companyId', '==', u.companyId))
         );
         const submittedIds = new Set(
           resSnap.docs
@@ -4163,17 +4331,19 @@
               const r = d.data();
               if (r.storeId !== u.storeId) return false;
               const ts = r.submittedAt?.toDate
-                ? r.submittedAt.toDate().getTime()
-                : (r.submittedAt?.seconds || 0) * 1000;
-              return ts >= monthStartMs;
+                ? r.submittedAt.toDate()
+                : new Date((r.submittedAt?.seconds || 0) * 1000);
+              const ym = `${ts.getFullYear()}-${String(ts.getMonth()+1).padStart(2,'0')}`;
+              return ym === yearMonth;
             })
             .map(d => d.data().checkId)
         );
+        const isCurrentMonth = yearMonth === currentYearMonth();
         el.innerHTML = filteredChecks.map(d => {
           const c = d.data();
           const done = submittedIds.has(d.id);
           const today = now.getDate();
-          const overdue = !done && c.dayOfMonth && today > c.dayOfMonth;
+          const overdue = isCurrentMonth && !done && c.scheduledDay && today > c.scheduledDay;
           return `
             <div class="check-exec-card ${done ? 'done' : overdue ? 'overdue' : ''}">
               <div class="check-exec-icon">
@@ -4182,7 +4352,7 @@
               <div class="check-exec-body">
                 <div style="font-weight:600;font-size:15px;">${c.title || 'チェック'}</div>
                 <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">
-                  ${(c.items || []).length}項目 / 毎月${c.dayOfMonth || '-'}日
+                  ${(c.items || []).length}項目 / 毎月${c.scheduledDay || '-'}日
                   ${done
                     ? '<span style="color:var(--success);margin-left:8px;"><i class="fas fa-check"></i> 提出済み</span>'
                     : overdue
@@ -4191,12 +4361,14 @@
                   }
                 </div>
               </div>
-              ${!done
+              ${isCurrentMonth && !done
                 ? `<button class="btn btn-primary btn-sm"
                            onclick="startCleanCheckExec('${d.id}','${ctx}')">
                      <i class="fas fa-broom"></i> 実施
                    </button>`
-                : `<span style="font-size:12px;color:var(--success);font-weight:600;">完了</span>`
+                : done
+                  ? `<span style="font-size:12px;color:var(--success);font-weight:600;">完了</span>`
+                  : ''
               }
             </div>`;
         }).join('');
