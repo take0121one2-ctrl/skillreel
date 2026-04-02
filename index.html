@@ -2848,10 +2848,11 @@
               const ts  = result.submittedAt?.toDate
                 ? result.submittedAt.toDate().toLocaleDateString('ja-JP')
                 : '';
-              const sc  = result.score ?? '--';
+              const sc  = result.score ?? result.judgment?.score ?? '--';
               const scC = typeof sc === 'number' ? (sc >= 80 ? 'high' : sc >= 60 ? 'mid' : 'low') : 'mid';
-              const rC  = result.result === 'pass' ? 'pass' : 'fail';
-              const rL  = result.result === 'pass' ? '合格' : '不合格';
+              const isPass = result.result === 'pass' || result.judgment?.result === 'pass';
+              const rC  = isPass ? 'pass' : 'fail';
+              const rL  = isPass ? '合格' : '不合格';
               html += `
                 <div class="result-table-row result-cols-5">
                   <span style="font-weight:500;">${store?.storeName || storeId}</span>
@@ -4385,10 +4386,13 @@
         _pExec.judgment = judgment;
         if (resultEl) {
           const pass = judgment.pass;
-          const detailRows = (judgment.details || []).map(d => `
-            <div class="ai-detail-item ${d.pass ? 'pass' : 'fail'}">
-              <i class="fas ${d.pass ? 'fa-check' : 'fa-times'}"></i>
-              <span>${d.point}</span>
+          const detailRows = (judgment.details || []).map((d, i) => `
+            <div class="ai-detail-item" style="
+              display:flex;align-items:flex-start;gap:8px;
+              padding:6px 0;border-bottom:1px solid var(--border);
+              font-size:13px;">
+              <i class="fas fa-comment" style="color:var(--primary);margin-top:2px;flex-shrink:0;"></i>
+              <span>${typeof d === 'string' ? d : d.point || JSON.stringify(d)}</span>
             </div>`).join('');
           const check = _pExec.check;
           resultEl.innerHTML = `
@@ -4485,14 +4489,16 @@
 
         const r = results[0];
         const j = r.judgment;
-        const pass = j?.pass ?? (j?.result === 'pass');
+        const pass = r.result === 'pass' || j?.result === 'pass';
         const ts = r.submittedAt?.toDate
           ? r.submittedAt.toDate().toLocaleString('ja-JP') : '';
 
         const detailRows = (j?.details || []).map(d => `
-          <div class="ai-detail-item ${d.pass ? 'pass' : 'fail'}">
-            <i class="fas ${d.pass ? 'fa-check' : 'fa-times'}"></i>
-            <span>${d.point || d}</span>
+          <div style="display:flex;align-items:flex-start;gap:8px;
+                      padding:6px 0;border-bottom:1px solid var(--border);
+                      font-size:13px;">
+            <i class="fas fa-comment" style="color:var(--primary);margin-top:2px;flex-shrink:0;"></i>
+            <span>${typeof d === 'string' ? d : d.point || JSON.stringify(d)}</span>
           </div>`).join('');
 
         let linkedVideoUrl = '';
@@ -4527,7 +4533,7 @@
               <i class="fas ${pass ? 'fa-circle-check' : 'fa-circle-xmark'}"></i>
               ${pass ? '合格' : '不合格'}
             </div>
-            <div class="ai-score">スコア: <strong>${j?.score ?? '-'}</strong> / 100</div>
+            <div class="ai-score">スコア: <strong>${r.score ?? j?.score ?? '-'}</strong> / 100</div>
             <div class="ai-comment">${j?.comment || 'AIコメントなし'}</div>
             ${detailRows ? `<div class="ai-details" style="margin-top:12px;">${detailRows}</div>` : ''}
           </div>
@@ -4625,6 +4631,8 @@
       if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '提出中...'; }
       try {
         const u = state.userData;
+        const j = _pExec.judgment;
+        const pass = j?.result === 'pass';
         await addDoc(collection(db, COLLECTIONS.productCheckResults), {
           companyId:     u.companyId,
           storeId:       u.storeId,
@@ -4634,9 +4642,27 @@
           submittedBy:   u.uid,
           submitterName: u.name || u.email || '',
           imageUrl:      _pExec.imageUrl,
-          judgment:      _pExec.judgment || null,
+          judgment:      j || null,
+          result:        j ? (pass ? 'pass' : 'fail') : null,
+          score:         j?.score ?? null,
+          comment:       j?.comment || '',
           submittedAt:   serverTimestamp(),
         });
+        if (j) {
+          await addDoc(collection(db, 'notifications'), {
+            type:        'check_result',
+            companyId:   u.companyId,
+            storeId:     u.storeId,
+            storeName:   u.storeName || '',
+            checkTitle:  _pExec.check.title || '',
+            result:      pass ? 'pass' : 'fail',
+            score:       j?.score ?? null,
+            message:     `【${pass ? '✅合格' : '❌不合格'}】${u.storeName || ''}が「${_pExec.check.title}」を提出しました（${j?.score ?? '-'}点）`,
+            targetRole:  'headquarters',
+            read:        false,
+            createdAt:   serverTimestamp(),
+          });
+        }
         showToast('商品チェックを提出しました', 'success');
         goBackFromProductCheck(ctx);
       } catch (err) {
@@ -5995,7 +6021,9 @@
           });
         const submittedIds   = new Set(results.map(r => r.storeId));
         const submittedCount = submittedIds.size;
-        const passCount      = results.filter(r => r.judgment?.pass === true).length;
+        const passCount      = results.filter(r =>
+          r.result === 'pass' || r.judgment?.result === 'pass'
+        ).length;
         const notSubmitted   = Math.max(0, totalStores - submittedCount);
         const rate           = totalStores > 0
           ? Math.round(submittedCount / totalStores * 100) : 0;
