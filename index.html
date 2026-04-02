@@ -1337,7 +1337,7 @@
        Check Feature: Anthropic API Key
        Set your key here before using AI judgment.
        ============================================================ */
-    const ANTHROPIC_API_KEY = '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';
+    const ANTHROPIC_API_KEY = localStorage.getItem('sr_anthropic_key') || '';
 
     /* ============================================================
        Check Feature: AI Product Check Judge
@@ -1369,7 +1369,7 @@
         method: 'POST',
         headers: {
           'Content-Type':      'application/json',
-          'x-api-key':         ANTHROPIC_API_KEY,
+          'x-api-key':         localStorage.getItem('sr_anthropic_key') || ANTHROPIC_API_KEY,
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
@@ -1940,6 +1940,14 @@
                 </button>
               `).join('')}
             </nav>
+            <button onclick="openApiKeyModal()" style="
+              width:calc(100% - 24px);margin:0 12px 8px;
+              padding:8px;background:rgba(255,255,255,0.05);
+              border:1px solid rgba(255,255,255,0.1);
+              border-radius:var(--radius-sm);color:var(--sidebar-text);
+              font-family:var(--font);font-size:11px;cursor:pointer;">
+              <i class="fas fa-key"></i> APIキー設定
+            </button>
             <div class="sidebar-user">
               ${avatarEl(u)}
               <div class="user-info">
@@ -5974,6 +5982,49 @@
     /* ============================================================
        HQ Dashboard (KPI実装)
        ============================================================ */
+    function openApiKeyModal() {
+      const current = localStorage.getItem('sr_anthropic_key') || '';
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.id = 'api-key-modal';
+      overlay.onclick = e => { if(e.target===overlay) overlay.remove(); };
+      overlay.innerHTML = `
+        <div class="modal" onclick="event.stopPropagation()">
+          <h2 class="modal-title">Anthropic APIキー設定</h2>
+          <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+            AI判定機能を使用するにはAnthropicのAPIキーが必要です。
+            キーはこのブラウザのみに保存されます。
+          </p>
+          <div class="form-group">
+            <label class="form-label">APIキー</label>
+            <input class="form-input" id="api-key-input" type="password"
+                   placeholder="sk-ant-api03-..."
+                   value="${current}">
+          </div>
+          <div style="display:flex;gap:10px;margin-top:20px;">
+            <button class="btn btn-ghost" style="flex:1;justify-content:center;"
+                    onclick="document.getElementById('api-key-modal').remove()">
+              キャンセル
+            </button>
+            <button class="btn btn-primary" style="flex:1;justify-content:center;"
+                    onclick="saveApiKey()">
+              <i class="fas fa-save"></i> 保存
+            </button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+    }
+    window.openApiKeyModal = openApiKeyModal;
+
+    function saveApiKey() {
+      const key = document.getElementById('api-key-input')?.value?.trim();
+      if (!key) { showToast('APIキーを入力してください', 'warning'); return; }
+      localStorage.setItem('sr_anthropic_key', key);
+      document.getElementById('api-key-modal')?.remove();
+      showToast('APIキーを保存しました', 'success');
+    }
+    window.saveApiKey = saveApiKey;
+
     async function renderHQDashboard(body) {
       body.innerHTML = `
         <div class="kpi-grid">
